@@ -16,8 +16,12 @@ struct Args {
 	password: String,
 	#[arg(short, long)]
 	m3u_file: String,
-	#[arg(short, long)]
+	#[arg(short, long,  help = "Append .ts to stream URLs")]
 	ts: bool,
+	#[arg(short, long, help = "Include VOD streams")]
+	vod: bool,
+	#[arg(short = 'S', long, help = "Include Series streams")]
+	series: bool,
 }
 
 #[tokio::main]
@@ -39,7 +43,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 							 args.username,
 							 args.password
 	);
-	
+	let vod_categories_url = format!("{}/player_api.php?username={}&password={}&action=get_vod_categories",
+							 args.server,
+							 args.username,
+							 args.password
+	);
+	let series_categories_url = format!("{}/player_api.php?username={}&password={}&action=get_series_categories",
+							 args.server,
+							 args.username,
+							 args.password
+	);
+	let vod_streams_url = format!("{}/player_api.php?username={}&password={}&action=get_vod_streams",
+							 args.server,
+							 args.username,
+							 args.password
+	);
+	let series_streams_url = format!("{}/player_api.php?username={}&password={}&action=get_series",
+							 args.server,
+							 args.username,
+							 args.password
+	);
 	let stream_ext = match args.ts {
 		true => ".ts",
 		false => "",
@@ -52,6 +75,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
     };
 
+	let mut total_streams = 0;
 	let a_json: serde_json::Value;
 	match reqwest::get(account_url).await {
 		Ok(resp) => {
@@ -107,6 +131,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 		Ok(resp) => {
 			let txt = resp.text().await?;
 			let json: Vec<serde_json::Value>  = serde_json::from_str(&txt).expect("NONE");
+			total_streams += json.len();
 			println!("Found {} streams", json.len());
 			println!("Creating m3u file {}", args.m3u_file);
 			for c in json {
@@ -131,5 +156,115 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 			println!("Error {err:?}")
 		}
 	}
+
+	if args.vod {
+		let mut categories = HashMap::new();
+		let c_json: Vec<serde_json::Value>;
+		println!("Getting VOD categories");
+		match reqwest::get(vod_categories_url).await {
+			Ok(resp) => {
+				let txt = resp.text().await?;
+				c_json =  serde_json::from_str(&txt).expect("NONE");
+				println!("Found {} VOD categories", c_json.len());
+				for c in &c_json {
+					let id = match c["category_id"].as_str() {
+						Some(s) => s,
+						_ => "",
+					};
+					let name = match c["category_name"].as_str() {
+						Some(s) => s,
+						_ => "",
+					};
+					categories.insert(id, name);
+				}
+			},
+			Err(err) => println!("Error {err:?}")
+		}
+		println!("Getting VOD streams");
+		match reqwest::get(vod_streams_url).await {
+			Ok(resp) => {
+				let txt = resp.text().await?;
+				let json: Vec<serde_json::Value>  = serde_json::from_str(&txt).expect("NONE");
+				total_streams += json.len();
+				println!("Found VOD {} streams", json.len());
+				println!("Adding to m3u file {}", args.m3u_file);
+				for c in json {
+					let c_name = match c["name"].as_str() {
+						Some(s) => s,
+						_ => &String::new(),
+					};
+					let c_id = match c["category_id"].as_str() {
+						Some(s) => s,
+						_ => &String::new(),
+					};
+					writeln!(output, "#EXTINF:-1 tvg-name={} tgv-logo={} group-title=\"{}\",{}", c["name"], c["stream_icon"], categories[c_id], c_name ).expect("ERROR");
+					writeln!(output, "{}/{}/{}/{}{}",
+							 args.server,
+							 args.username,
+							 args.password,
+							 c["stream_id"],
+							 stream_ext).expect("ERROR");
+				}
+			},
+			Err(err) => {
+				println!("Error {err:?}")
+			}
+		}
+	}
+	if args.series {
+		let mut categories = HashMap::new();
+		let c_json: Vec<serde_json::Value>;
+		println!("Getting Series categories");
+		match reqwest::get(series_categories_url).await {
+			Ok(resp) => {
+				let txt = resp.text().await?;
+				c_json =  serde_json::from_str(&txt).expect("NONE");
+				println!("Found {} Series categories", c_json.len());
+				for c in &c_json {
+					let id = match c["category_id"].as_str() {
+						Some(s) => s,
+						_ => "",
+					};
+					let name = match c["category_name"].as_str() {
+						Some(s) => s,
+						_ => "",
+					};
+					categories.insert(id, name);
+				}
+			},
+			Err(err) => println!("Error {err:?}")
+		}
+		println!("Getting Series streams");
+		match reqwest::get(series_streams_url).await {
+			Ok(resp) => {
+				let txt = resp.text().await?;
+				let json: Vec<serde_json::Value>  = serde_json::from_str(&txt).expect("NONE");
+				total_streams += json.len();
+				println!("Found Series {} streams", json.len());
+				println!("Adding to m3u file {}", args.m3u_file);
+				for c in json {
+					let c_name = match c["name"].as_str() {
+						Some(s) => s,
+						_ => &String::new(),
+					};
+					let c_id = match c["category_id"].as_str() {
+						Some(s) => s,
+						_ => &String::new(),
+					};
+					writeln!(output, "#EXTINF:-1 tvg-name={} tgv-logo={} group-title=\"{}\",{}", c["name"], c["stream_icon"], categories[c_id], c_name ).expect("ERROR");
+					writeln!(output, "{}/{}/{}/{}{}",
+							 args.server,
+							 args.username,
+							 args.password,
+							 c["stream_id"],
+							 stream_ext).expect("ERROR");
+				}
+			},
+			Err(err) => {
+				println!("Error {err:?}")
+			}
+		}
+	}
+	println!("Found {total_streams} streams");
 	Ok(())
 }
