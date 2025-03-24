@@ -102,6 +102,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	}
 
 	println!("Getting streams");
+	writeln!(output, "#EXTM3U");
 	match reqwest::get(stream_url).await {
 		Ok(resp) => {
 			let txt = resp.text().await?;
@@ -117,7 +118,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 					Some(s) => s,
 					_ => &String::new(),
 				};
-				writeln!(output, "EXTINF:-1 tvg-name={} tgv-logo={} group-title=\"{}\",{}", c["name"], c["stream_icon"], categories[c_id], c_name ).expect("ERROR");
+				writeln!(output, "#EXTINF:-1 tvg-name={} tgv-logo={} group-title=\"{}\",{}", c["name"], c["stream_icon"], categories[c_id], c_name ).expect("ERROR");
 				writeln!(output, "{}/{}/{}/{}{}",
 						 args.server,
 						 args.username,
