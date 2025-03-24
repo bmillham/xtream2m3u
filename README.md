@@ -11,7 +11,12 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh\
 This will install everything you need to use Rust
 
 ### Windows or Mac
+
 Go to https::/www.rust-lan.org/tools/install and follow the instructions.
+
+#### Windows Executable for WIn10/11
+
+https://github.com/bmillham/xtream2m3/releases/v0.1.0/xtream2m3u.exe
 
 ## Install xtream2m3u
 
