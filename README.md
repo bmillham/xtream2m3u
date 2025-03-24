@@ -2,9 +2,18 @@
 A simple program to create a m3u with the given xtream credentials
 
 # Installing
+
+## Install Rust
+
+### Linux
 To install rust:\
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh\
 This will install everything you need to use Rust
+
+### Windows or Mac
+Go to https::/www.rust-lan.org/tools/install and follow the instructions.
+
+## Install xtream2m3u
 
 To install xtream2m3u, clone this to your projects directory:\
 mkdir -p projects\
@@ -14,6 +23,7 @@ git clone https://github.com/bmillham/xtream2m3u
 The project is now in projects/extream2m3u
 
 cd extream2m3u
+
 Everything from here on is done in the xtream2m3u directory.
 
 # Options
