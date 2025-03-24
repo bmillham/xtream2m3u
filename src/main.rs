@@ -85,6 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 		Ok(resp) => {
 			let txt = resp.text().await?;
 			c_json =  serde_json::from_str(&txt).expect("NONE");
+			println!("Found {} categories", c_json.len());
 			for c in &c_json {
 				let id = match c["category_id"].as_str() {
 					Some(s) => s,
@@ -103,9 +104,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	println!("Getting streams");
 	match reqwest::get(stream_url).await {
 		Ok(resp) => {
-			println!("Creating m3u file {}", args.m3u_file);
 			let txt = resp.text().await?;
 			let json: Vec<serde_json::Value>  = serde_json::from_str(&txt).expect("NONE");
+			println!("Found {} streams", json.len());
+			println!("Creating m3u file {}", args.m3u_file);
 			for c in json {
 				let c_name = match c["name"].as_str() {
 					Some(s) => s,
