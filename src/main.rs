@@ -102,7 +102,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	}
 
 	println!("Getting streams");
-	writeln!(output, "#EXTM3U");
+	writeln!(output, "#EXTM3U").expect("ERROR");
 	match reqwest::get(stream_url).await {
 		Ok(resp) => {
 			let txt = resp.text().await?;
