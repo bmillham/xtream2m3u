@@ -3,6 +3,7 @@ use std::{fs::File, io::Write};
 use clap::Parser;
 use reqwest;
 use std::collections::HashMap;
+use chrono::DateTime;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about=None)]
@@ -22,7 +23,12 @@ struct Args {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let args = Args::parse();
-	
+
+	let account_url = format!("{}/player_api.php?username={}&password={}",
+							   args.server,
+							   args.username,
+							   args.password
+	);
 	let category_url = format!("{}/player_api.php?username={}&password={}&action=get_live_categories",
 							   args.server,
 							   args.username,
@@ -45,6 +51,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             panic!("Error creating {:?}: {e:?}", args.m3u_file);
                         }
     };
+
+	let a_json: serde_json::Value;
+	match reqwest::get(account_url).await {
+		Ok(resp) => {
+			let txt = resp.text().await?;
+			a_json = serde_json::from_str(&txt).expect("NONE");
+			let ts: i64 = match a_json["user_info"]["exp_date"].as_str() {
+				Some(s) => s.parse().unwrap(),
+				_ => 0,
+			};
+			let created: i64 = match a_json["user_info"]["created_at"].as_str() {
+				Some(s) => s.parse().unwrap(),
+				_ => 0,
+			};
+			println!("Account Information:");
+			println!(" Created: {}", DateTime::from_timestamp(created, 0).expect("Invalid Timestamp").to_string());
+			println!(" Expires: {}", DateTime::from_timestamp(ts, 0).expect("Invalid Timestamp").to_string());
+			println!(" Status: {}", a_json["user_info"]["status"]);
+			println!(" Active Connections: {}", a_json["user_info"]["active_cons"]);
+			println!(" Max Connections: {}", a_json["user_info"]["max_connections"]);
+			println!(" Trial: {}", a_json["user_info"]["is_trial"]);
+				
+		},
+		Err(err) => println!("Error: {err:?}")
+	}
+	
 
 	let mut categories = HashMap::new();
 	let c_json: Vec<serde_json::Value>;
