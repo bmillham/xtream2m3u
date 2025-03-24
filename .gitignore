@@ -1,0 +1,6 @@
+/target
+*~
+/out.m3u
+/output.json
+*~
+/Cargo.lock
