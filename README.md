@@ -33,6 +33,6 @@ If you want to run this from a cron job, etc you need to build the project. To d
 
 cargo build --release
 
-And you will find xtream2n3u in target/release
+And you will find xtream2m3u in target/release
 
 Enjoy! And feedback is welcome!
