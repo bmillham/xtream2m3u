@@ -61,26 +61,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 				Ok(t) => t,
 				Err(e) => panic!("Error: {e:?}"),
 			};
+	
 			a_json = match serde_json::from_str(&txt) {
 				Ok(j) => j,
 				Err(e) => panic!("Error getting json: {e:?}"),
 			};
 			let ts: i64 = match a_json["user_info"]["exp_date"].as_str() {
 				Some(s) => s.parse().unwrap(),
-				_ => 0,
+				_ => match a_json["user_info"]["exp_date"].as_i64() {
+					Some(n) => n,
+					_ => 0,
+				},
 			};
 			let created: i64 = match a_json["user_info"]["created_at"].as_str() {
 				Some(s) => s.parse().unwrap(),
-				_ => 0,
+				_ => match a_json["user_info"]["created_at"].as_i64() {
+					Some(n) => n,
+					_ => 0,
+				},
 			};
+			let is_trial: bool = match a_json["user_info"]["is_trial"].is_boolean() {
+				true => a_json["user_info"]["is_trial"].as_bool().unwrap(),
+				false => match a_json["user_info"]["is_trial"].as_str() {
+					Some("1") => true,
+					_ => false,
+				},
+			};
+
 			println!("Account Information:");
 			println!(" Created: {}", DateTime::from_timestamp(created, 0).expect("Invalid Timestamp").to_string());
 			println!(" Expires: {}", DateTime::from_timestamp(ts, 0).expect("Invalid Timestamp").to_string());
 			println!(" Status: {}", a_json["user_info"]["status"]);
 			println!(" Active Connections: {}", a_json["user_info"]["active_cons"]);
 			println!(" Max Connections: {}", a_json["user_info"]["max_connections"]);
-			println!(" Trial: {}", a_json["user_info"]["is_trial"]);
-				
+			println!(" Trial: {is_trial}");
 		},
 		Err(err) => println!("Error: {err:?}")
 	}
