@@ -66,8 +66,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 				Ok(j) => j,
 				Err(e) => panic!("Error getting json: {e:?}"),
 			};
-			let ts: i64 = match a_json["user_info"]["exp_date"].as_str() {
-				Some(s) => s.parse().unwrap(),
+			let expires: i64 = match a_json["user_info"]["exp_date"].as_str() {
+				Some(s) => s.parse().unwrap() ,
 				_ => match a_json["user_info"]["exp_date"].as_i64() {
 					Some(n) => n,
 					_ => 0,
@@ -90,7 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 			println!("Account Information:");
 			println!(" Created: {}", DateTime::from_timestamp(created, 0).expect("Invalid Timestamp").to_string());
-			println!(" Expires: {}", DateTime::from_timestamp(ts, 0).expect("Invalid Timestamp").to_string());
+			println!(" Expires: {}", DateTime::from_timestamp(expires, 0).expect("Invalid Timestamp").to_string());
 			println!(" Status: {}", a_json["user_info"]["status"]);
 			println!(" Active Connections: {}", a_json["user_info"]["active_cons"]);
 			println!(" Max Connections: {}", a_json["user_info"]["max_connections"]);
@@ -154,12 +154,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 					Some(s) => s,
 					_ => &String::new(),
 				};
+				let stream_id = match c["stream_id"].is_string() {
+					true => c["stream_id"].as_str().unwrap(),
+					false => &format!("{}", c["stream_id"].as_i64().unwrap()),
+				};
 				writeln!(output, "#EXTINF:-1 tvg-name={} tgv-logo={} group-title=\"{}\",{}", c["name"], c["stream_icon"], categories[c_id], c_name ).expect("ERROR");
 				writeln!(output, "{}/{}/{}/{}{}",
 						 args.server,
 						 args.username,
 						 args.password,
-						 c["stream_id"],
+						 stream_id,
 						 stream_ext).expect("ERROR");
 			}
 		},
