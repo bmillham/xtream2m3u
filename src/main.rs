@@ -63,6 +63,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 							 args.username,
 							 args.password
 	);
+	let series_info_url = format!("{}/player_api.php?username={}&password={}&action=get_series_info&series_id=",
+							 args.server,
+							 args.username,
+							 args.password
+	);
+
 	let stream_ext = match args.ts {
 		true => ".ts",
 		false => "",
@@ -251,6 +257,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 						Some(s) => s,
 						_ => &String::new(),
 					};
+					println!("{:?}", c["series_id"]);
+					let sinf_url = format!("{}{}", series_info_url, c["series_id"]);
+					match reqwest::get(sinf_url.clone()).await {
+						Ok(resp) => {
+							let itxt = resp.text().await?;
+							println!("{itxt:?}")
+						},
+						Err(err) => {
+							println!("{err:?}")
+						}
+					};
+
+					println!("{sinf_url}");
 					writeln!(output, "#EXTINF:-1 tvg-name={} tgv-logo={} group-title=\"{}\",{}", c["name"], c["stream_icon"], categories[c_id], c_name ).expect("ERROR");
 					writeln!(output, "{}/{}/{}/{}{}",
 							 args.server,
