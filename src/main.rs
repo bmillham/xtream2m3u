@@ -14,10 +14,12 @@ struct Args {
 	username: String,
 	#[arg(short, long)]
 	password: String,
-	#[arg(short, long)]
-	m3u_file: String,
+	#[arg(short, long, group="g")]
+	m3u_file: Option<String>,
 	#[arg(short, long)]
 	ts: bool,
+	#[arg(short, long, group="g")]
+	account_info: bool,
 }
 
 #[tokio::main]
@@ -45,12 +47,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 		false => "",
 	};
 	
-	let mut output = match File::create(&args.m3u_file) {
-                        Ok(f) => f,
-                        Err(e) => {
-                            panic!("Error creating {:?}: {e:?}", args.m3u_file);
-                        }
-    };
+
 
 	let a_json: serde_json::Value;
 	match reqwest::get(account_url).await {
@@ -76,8 +73,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 		},
 		Err(err) => println!("Error: {err:?}")
 	}
-	
-
+	if args.account_info {
+		std::process::exit(0);
+	}
+	let m3u_file = match args.m3u_file {
+		Some(f) => f,
+		_ => panic!("No m3u file supplied"),
+	};
+	let mut output = match File::create(&m3u_file) {
+                        Ok(f) => f,
+                        Err(e) => {
+                            panic!("Error creating {:?}: {e:?}", m3u_file);
+                        }
+    };
 	let mut categories = HashMap::new();
 	let c_json: Vec<serde_json::Value>;
 	println!("Getting categories");
@@ -108,7 +116,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 			let txt = resp.text().await?;
 			let json: Vec<serde_json::Value>  = serde_json::from_str(&txt).expect("NONE");
 			println!("Found {} streams", json.len());
-			println!("Creating m3u file {}", args.m3u_file);
+			println!("Creating m3u file {}", m3u_file);
 			for c in json {
 				let c_name = match c["name"].as_str() {
 					Some(s) => s,
