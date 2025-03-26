@@ -52,8 +52,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let a_json: serde_json::Value;
 	match reqwest::get(account_url).await {
 		Ok(resp) => {
-			let txt = resp.text().await?;
-			a_json = serde_json::from_str(&txt).expect("NONE");
+			if resp.status() != 200 {
+				println!("Error {} getting account information", resp.status());
+				println!("Verify that your username and password are correct");
+				std::process::exit(1);
+			}
+			let txt = match resp.text().await {
+				Ok(t) => t,
+				Err(e) => panic!("Error: {e:?}"),
+			};
+			a_json = match serde_json::from_str(&txt) {
+				Ok(j) => j,
+				Err(e) => panic!("Error getting json: {e:?}"),
+			};
 			let ts: i64 = match a_json["user_info"]["exp_date"].as_str() {
 				Some(s) => s.parse().unwrap(),
 				_ => 0,
