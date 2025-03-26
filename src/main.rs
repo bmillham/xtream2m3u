@@ -78,7 +78,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	}
 	let m3u_file = match args.m3u_file {
 		Some(f) => f,
-		_ => panic!("No m3u file supplied"),
+		_ => {
+			println!("No m3u file supplied");
+			std::process::exit(0)
+		},
 	};
 	let mut output = match File::create(&m3u_file) {
                         Ok(f) => f,
