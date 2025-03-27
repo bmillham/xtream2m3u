@@ -4,7 +4,7 @@
 /output.json
 *~
 /Cargo.lock
-/complete.m3u
+*.m3u
 *.json
 /sinf.jsonAK
-*.m3u
+
