@@ -1,5 +1,6 @@
 use chrono::DateTime;
 use clap::Parser;
+use serde_json::Value;
 use std::collections::HashMap;
 use std::{fs::File, io::Write};
 
@@ -52,7 +53,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let mut total_streams = 0;
-    let a_json: serde_json::Value;
+
     match reqwest::get(account_url).await {
         Ok(resp) => {
             if resp.status() != 200 {
@@ -60,15 +61,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Verify that your username and password are correct");
                 std::process::exit(1);
             }
-            let txt = match resp.text().await {
-                Ok(t) => t,
-                Err(e) => panic!("Error: {e:?}"),
-            };
-
-            a_json = match serde_json::from_str(&txt) {
-                Ok(j) => j,
-                Err(e) => panic!("Error getting json: {e:?}"),
-            };
+            let a_json = resp.json::<Value>().await?;
             let expires: i64 = match a_json["user_info"]["exp_date"].as_str() {
                 Some(s) => s.parse().unwrap(),
                 _ => a_json["user_info"]["exp_date"].as_i64().unwrap_or_default(),
@@ -131,12 +124,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
     let mut categories = HashMap::new();
-    let c_json: Vec<serde_json::Value>;
+    let c_json: Vec<Value>;
     println!("Getting categories");
     match reqwest::get(category_url).await {
         Ok(resp) => {
-            let txt = resp.text().await?;
-            c_json = serde_json::from_str(&txt).expect("NONE");
+            c_json = resp.json::<Vec<Value>>().await?;
             println!("Found {} categories", c_json.len());
             for c in &c_json {
                 let id = c["category_id"].as_str().unwrap_or_default();
@@ -151,8 +143,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     writeln!(output, "#EXTM3U").expect("ERROR");
     match reqwest::get(stream_url).await {
         Ok(resp) => {
-            let txt = resp.text().await?;
-            let json: Vec<serde_json::Value> = serde_json::from_str(&txt).expect("NONE");
+            let json = resp.json::<Vec<Value>>().await?;
             total_streams += json.len();
             println!("Found {} streams", json.len());
             println!("Creating m3u file {}", m3u_file);
@@ -184,12 +175,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if args.vod {
         let mut categories = HashMap::new();
-        let c_json: Vec<serde_json::Value>;
+        let c_json: Vec<Value>;
         println!("Getting VOD categories");
         match reqwest::get(vod_categories_url).await {
             Ok(resp) => {
-                let txt = resp.text().await?;
-                c_json = serde_json::from_str(&txt).expect("NONE");
+                c_json = resp.json::<Vec<Value>>().await?;
                 println!("Found {} VOD categories", c_json.len());
                 for c in &c_json {
                     let id = match c["category_id"].as_str() {
@@ -209,7 +199,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         match reqwest::get(vod_streams_url).await {
             Ok(resp) => {
                 let txt = resp.text().await?;
-                let json: Vec<serde_json::Value> = serde_json::from_str(&txt).expect("NONE");
+                let json: Vec<Value> = serde_json::from_str(&txt).expect("NONE");
                 total_streams += json.len();
                 println!("Found VOD {} streams", json.len());
                 println!("Adding to m3u file {}", m3u_file);
