@@ -197,14 +197,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Found VOD {} streams", json.len());
                 println!("Adding to m3u file {}", m3u_file);
                 for c in json {
-                    let c_name = match c["name"].as_str() {
-                        Some(s) => s,
-                        _ => &String::new(),
-                    };
-                    let c_id = match c["category_id"].as_str() {
-                        Some(s) => s,
-                        _ => &String::new(),
-                    };
+                    let c_name = c["name"].as_str().unwrap_or_default();
+                    let c_id = c["category_id"].as_str().unwrap_or_default();
                     writeln!(
                         output,
                         "#EXTINF:-1 tvg-name={} tgv-logo={} group-title=\"{}\",{}",
