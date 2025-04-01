@@ -182,14 +182,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 c_json = resp.json::<Vec<Value>>().await?;
                 println!("Found {} VOD categories", c_json.len());
                 for c in &c_json {
-                    let id = match c["category_id"].as_str() {
-                        Some(s) => s,
-                        _ => "",
-                    };
-                    let name = match c["category_name"].as_str() {
-                        Some(s) => s,
-                        _ => "",
-                    };
+                    let id = c["category_id"].as_str().unwrap_or_default();
+                    let name = c["category_name"].as_str().unwrap_or_default();
                     categories.insert(id, name);
                 }
             }
@@ -198,8 +192,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Getting VOD streams");
         match reqwest::get(vod_streams_url).await {
             Ok(resp) => {
-                let txt = resp.text().await?;
-                let json: Vec<Value> = serde_json::from_str(&txt).expect("NONE");
+                let json = resp.json::<Vec<Value>>().await?;
                 total_streams += json.len();
                 println!("Found VOD {} streams", json.len());
                 println!("Adding to m3u file {}", m3u_file);
