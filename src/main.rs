@@ -79,6 +79,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .as_i64()
                     .unwrap_or_default(),
             };
+            let max_connections: i64 = match a_json["user_info"]["max_connections"].as_str() {
+                Some(s) => s.parse().unwrap(),
+                _ => a_json["user_info"]["max_connections"]
+                    .as_i64()
+                    .unwrap_or_default(),
+            };
             let is_trial: bool = match a_json["user_info"]["is_trial"].is_boolean() {
                 true => a_json["user_info"]["is_trial"].as_bool().unwrap(),
                 false => matches!(a_json["user_info"]["is_trial"].as_str(), Some("1")),
@@ -93,16 +99,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 " Expires: {}",
                 DateTime::from_timestamp(expires, 0).expect("Invalid Timestamp")
             );
-            println!(" Status: {}", a_json["user_info"]["status"]);
+            println!(
+                " Status: {}",
+                a_json["user_info"]["status"].as_str().unwrap_or_default()
+            );
             println!(
                 " Active Connections: {}",
                 a_json["user_info"]["active_cons"]
+                    .as_str()
+                    .unwrap_or_default()
             );
-            println!(
-                " Max Connections: {}",
-                a_json["user_info"]["max_connections"]
-            );
-            println!(" Trial: {is_trial}");
+            println!(" Max Connections: {max_connections}");
+            println!(" Trial: {is_trial}",);
         }
         Err(err) => println!("Error: {err:?}"),
     }
