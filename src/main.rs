@@ -182,9 +182,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 c_json = resp.json::<Vec<Value>>().await?;
                 println!("Found {} VOD categories", c_json.len());
                 for c in &c_json {
-                    let id = c["category_id"].as_str().unwrap_or_default();
-                    let name = c["category_name"].as_str().unwrap_or_default();
-                    categories.insert(id, name);
+                    categories.insert(
+                        c["category_id"].as_str().unwrap_or_default(),
+                        c["category_name"].as_str().unwrap_or_default(),
+                    );
                 }
             }
             Err(err) => println!("Error {err:?}"),
