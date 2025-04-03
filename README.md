@@ -39,6 +39,7 @@ Everything from here on is done in the xtream2m3u directory.
 + -t, --ts: Append a .ts to the stream URL in the generated m3u
 + -m, --m3u-file: The name of the generated m3u file (Required unless -a is used)
 + -a, --acount-info: Only show the account information
++ -v --vod: Create a file for each VOD category
 
 # Running
 

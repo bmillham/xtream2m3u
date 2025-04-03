@@ -16,7 +16,7 @@ struct Args {
     password: String,
     #[arg(short, long, help = "Append .ts to stream URLs")]
     ts: bool,
-    #[arg(short, long, help = "Include VOD streams")]
+    #[arg(short, long, help = "Create a M3U for each VOD category")]
     vod: bool,
     #[arg(short, long, group = "g")]
     m3u_file: Option<String>,
