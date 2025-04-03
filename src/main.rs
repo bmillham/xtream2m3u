@@ -1,6 +1,7 @@
 use chrono::DateTime;
 use clap::Parser;
 use serde_json::Value;
+use static_str_ops::static_format;
 use std::collections::HashMap;
 use std::{fs::File, io::Write};
 
@@ -21,6 +22,12 @@ struct Args {
     m3u_file: Option<String>,
     #[arg(short, long, group = "g")]
     account_info: bool,
+}
+
+#[derive(Debug)]
+struct VCat {
+    cat_name: String,
+    file_handle: File,
 }
 
 #[tokio::main]
@@ -174,7 +181,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if args.vod {
-        let mut categories = HashMap::new();
+        let mut vod_cats = HashMap::new();
         let c_json: Vec<Value>;
         println!("Getting VOD categories");
         match reqwest::get(vod_categories_url).await {
@@ -182,10 +189,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 c_json = resp.json::<Vec<Value>>().await?;
                 println!("Found {} VOD categories", c_json.len());
                 for c in &c_json {
-                    categories.insert(
-                        c["category_id"].as_str().unwrap_or_default(),
-                        c["category_name"].as_str().unwrap_or_default(),
-                    );
+                    let cat_name = c["category_name"].as_str().unwrap_or_default();
+                    let f_name = sanitise_file_name::sanitise(static_format!("vod-{cat_name}.m3u"));
+                    println!("Creating {f_name} for category {cat_name}");
+                    let mut cat_output = match File::create(&f_name) {
+                        Ok(f) => f,
+                        Err(e) => {
+                            panic!("Error creating {f_name:?}: {e:?}");
+                        }
+                    };
+                    writeln!(cat_output, "#EXTM3U").expect("ERROR");
+                    let vcat = VCat {
+                        cat_name: cat_name.to_string(),
+                        file_handle: cat_output,
+                    };
+                    vod_cats.insert(c["category_id"].as_str().unwrap_or_default(), vcat);
                 }
             }
             Err(err) => println!("Error {err:?}"),
@@ -201,15 +219,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let c_name = c["name"].as_str().unwrap_or_default();
                     let c_id = c["category_id"].as_str().unwrap_or_default();
                     writeln!(
-                        output,
+                        &vod_cats[c_id].file_handle,
                         "#EXTINF:-1 tvg-name={} tgv-logo={} group-title=\"{}\",{}",
-                        c["name"], c["stream_icon"], categories[c_id], c_name
+                        c["name"], c["stream_icon"], vod_cats[c_id].cat_name, c_name
                     )
                     .expect("ERROR");
                     writeln!(
-                        output,
-                        "{}/{}/{}/{}{}",
-                        args.server, args.username, args.password, c["stream_id"], stream_ext
+                        &vod_cats[c_id].file_handle,
+                        "{}/movie/{}/{}/{}.{}",
+                        args.server,
+                        args.username,
+                        args.password,
+                        c["stream_id"],
+                        c["container_extension"].as_str().unwrap_or_default()
                     )
                     .expect("ERROR");
                 }
