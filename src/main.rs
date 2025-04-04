@@ -232,7 +232,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         )
                         .expect("ERROR");
                     } else {
-                        println!("WARING: category {c_id} not found for {c_name}");
+                        println!("WARNING: category {c_id} not found for {c_name}");
+                        println!("JSON: {c:?}");
                     }
 
                     let url = format!(
