@@ -18,6 +18,10 @@ struct Args {
     ts: bool,
     #[arg(short, long, help = "Create a M3U for each VOD category")]
     vod: bool,
+    #[arg(short = 'T', long, help = "Modify the stream URL for use in TVHeadend")]
+    tvheadend_remux: bool,
+    #[arg(short, long, help = "Do not add a header to the VOD M3U files")]
+    no_vodm3u_header: bool,
     #[arg(short, long, group = "g")]
     m3u_file: Option<String>,
     #[arg(short, long, group = "g")]
@@ -198,7 +202,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             panic!("Error creating {f_name:?}: {e:?}");
                         }
                     };
-                    writeln!(cat_output, "#EXTM3U").expect("ERROR");
+                    if !args.no_vodm3u_header {
+                        writeln!(cat_output, "#EXTM3U").expect("ERROR");
+                    }
                     let vcat = VCat {
                         cat_name: cat_name.to_string(),
                         file_handle: cat_output,
@@ -224,16 +230,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         c["name"], c["stream_icon"], vod_cats[c_id].cat_name, c_name
                     )
                     .expect("ERROR");
-                    writeln!(
-                        &vod_cats[c_id].file_handle,
+
+                    let url = format!(
                         "{}/movie/{}/{}/{}.{}",
                         args.server,
                         args.username,
                         args.password,
                         c["stream_id"],
                         c["container_extension"].as_str().unwrap_or_default()
-                    )
-                    .expect("ERROR");
+                    );
+                    /* pipe:///usr/bin/ffmpeg -loglevel 0 -re -i URL  -c copy -flags +global_headers -f mpegts pipe:1 */
+                    if args.tvheadend_remux {
+                        writeln!(
+							&vod_cats[c_id].file_handle,
+							"pipe:///usr/bin/ffmpeg -loglevel 0 -re -i  {url} -c copy -flags +global_headers -f mpegts pipe:1",
+						).expect("ERROR");
+                    } else {
+                        writeln!(&vod_cats[c_id].file_handle, "{url}").expect("ERROR");
+                    }
                 }
             }
             Err(err) => {
