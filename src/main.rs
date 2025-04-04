@@ -224,12 +224,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 for c in json {
                     let c_name = c["name"].as_str().unwrap_or_default();
                     let c_id = c["category_id"].as_str().unwrap_or_default();
-                    writeln!(
-                        &vod_cats[c_id].file_handle,
-                        "#EXTINF:-1 tvg-name={} tgv-logo={} group-title=\"{}\",{}",
-                        c["name"], c["stream_icon"], vod_cats[c_id].cat_name, c_name
-                    )
-                    .expect("ERROR");
+                    if vod_cats.contains_key(c_id) {
+                        writeln!(
+                            &vod_cats[c_id].file_handle,
+                            "#EXTINF:-1 tvg-name={} tgv-logo={} group-title=\"{}\",{}",
+                            c["name"], c["stream_icon"], vod_cats[c_id].cat_name, c_name
+                        )
+                        .expect("ERROR");
+                    } else {
+                        println!("WARING: category {c_id} not found for {c_name}");
+                    }
 
                     let url = format!(
                         "{}/movie/{}/{}/{}.{}",
@@ -239,7 +243,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         c["stream_id"],
                         c["container_extension"].as_str().unwrap_or_default()
                     );
-                    /* pipe:///usr/bin/ffmpeg -loglevel 0 -re -i URL  -c copy -flags +global_headers -f mpegts pipe:1 */
                     if args.tvheadend_remux {
                         writeln!(
 							&vod_cats[c_id].file_handle,
