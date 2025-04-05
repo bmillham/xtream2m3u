@@ -3,7 +3,7 @@ use clap::Parser;
 use serde_json::Value;
 use static_str_ops::static_format;
 use std::collections::HashMap;
-use std::{fs::File, io::Write};
+use std::{cell::Cell, fs::File, io::Write};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about=None)]
@@ -31,7 +31,9 @@ struct Args {
 #[derive(Debug)]
 struct VCat {
     cat_name: String,
+    file_name: String,
     file_handle: File,
+    stream_count: Cell<i32>,
 }
 
 #[tokio::main]
@@ -215,6 +217,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             create_category_file("No_Category".to_string(), args.no_vodm3u_header);
                         vod_cats.insert(c_id, vcat);
                     }
+                    vod_cats[c_id]
+                        .stream_count
+                        .set(vod_cats[c_id].stream_count.get() + 1);
                     writeln!(
                         &vod_cats[c_id].file_handle,
                         "#EXTINF:-1 tvg-name={} tgv-logo={} group-title=\"{}\",{}",
@@ -239,6 +244,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         writeln!(&vod_cats[c_id].file_handle, "{url}").expect("ERROR");
                     }
                 }
+                let mut sorted: Vec<_> = vod_cats.iter().collect();
+                sorted.sort_by_key(|a| &a.1.cat_name);
+                for c in sorted {
+                    println!(
+                        "{} ({}): has {} streams",
+                        c.1.cat_name,
+                        c.1.file_name,
+                        c.1.stream_count.get(),
+                    );
+                }
             }
             Err(err) => {
                 println!("Error {err:?}")
@@ -251,7 +266,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn create_category_file(cat_name: String, header: bool) -> VCat {
     let f_name = sanitise_file_name::sanitise(static_format!("vod-{cat_name}.m3u"));
-    println!("Creating {f_name} for category {cat_name}");
     let mut cat_output = match File::create(&f_name) {
         Ok(f) => f,
         Err(e) => {
@@ -263,6 +277,8 @@ fn create_category_file(cat_name: String, header: bool) -> VCat {
     }
     VCat {
         cat_name: cat_name.to_string(),
+        file_name: f_name,
         file_handle: cat_output,
+        stream_count: Cell::new(0),
     }
 }
