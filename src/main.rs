@@ -227,7 +227,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         args.server,
                         args.username,
                         args.password,
-                        c["stream_id"],
+                        c["stream_id"].as_str().unwrap_or_default(),
                         c["container_extension"].as_str().unwrap_or_default()
                     );
                     if args.tvheadend_remux {
