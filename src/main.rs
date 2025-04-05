@@ -207,13 +207,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 total_streams += json.len();
                 println!("Found VOD {} streams", json.len());
                 println!("Adding to VOD m3u files");
-                for c in json {
+                for c in &json {
                     let c_name = c["name"].as_str().unwrap_or_default();
                     let c_id = c["category_id"].as_str().unwrap_or("-1");
                     if !vod_cats.contains_key(c_id) {
                         let vcat =
                             create_category_file("No_Category".to_string(), args.no_vodm3u_header);
-                        vod_cats.insert("-1", vcat);
+                        vod_cats.insert(c_id, vcat);
                     }
                     writeln!(
                         &vod_cats[c_id].file_handle,
