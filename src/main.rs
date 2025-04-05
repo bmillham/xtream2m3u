@@ -194,21 +194,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Found {} VOD categories", c_json.len());
                 for c in &c_json {
                     let cat_name = c["category_name"].as_str().unwrap_or_default();
-                    let f_name = sanitise_file_name::sanitise(static_format!("vod-{cat_name}.m3u"));
-                    println!("Creating {f_name} for category {cat_name}");
-                    let mut cat_output = match File::create(&f_name) {
-                        Ok(f) => f,
-                        Err(e) => {
-                            panic!("Error creating {f_name:?}: {e:?}");
-                        }
-                    };
-                    if !args.no_vodm3u_header {
-                        writeln!(cat_output, "#EXTM3U").expect("ERROR");
-                    }
-                    let vcat = VCat {
-                        cat_name: cat_name.to_string(),
-                        file_handle: cat_output,
-                    };
+                    let vcat = create_category_file(cat_name.to_string(), args.no_vodm3u_header);
                     vod_cats.insert(c["category_id"].as_str().unwrap_or_default(), vcat);
                 }
             }
@@ -220,21 +206,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let json = resp.json::<Vec<Value>>().await?;
                 total_streams += json.len();
                 println!("Found VOD {} streams", json.len());
-                println!("Adding to m3u file {}", m3u_file);
+                println!("Adding to VOD m3u files");
                 for c in json {
                     let c_name = c["name"].as_str().unwrap_or_default();
-                    let c_id = c["category_id"].as_str().unwrap_or_default();
-                    if vod_cats.contains_key(c_id) {
-                        writeln!(
-                            &vod_cats[c_id].file_handle,
-                            "#EXTINF:-1 tvg-name={} tgv-logo={} group-title=\"{}\",{}",
-                            c["name"], c["stream_icon"], vod_cats[c_id].cat_name, c_name
-                        )
-                        .expect("ERROR");
-                    } else {
-                        println!("WARNING: category {c_id} not found for {c_name}");
-                        println!("JSON: {c:?}");
+                    let c_id = c["category_id"].as_str().unwrap_or("-1");
+                    if !vod_cats.contains_key(c_id) {
+                        let vcat =
+                            create_category_file("No_Category".to_string(), args.no_vodm3u_header);
+                        vod_cats.insert("-1", vcat);
                     }
+                    writeln!(
+                        &vod_cats[c_id].file_handle,
+                        "#EXTINF:-1 tvg-name={} tgv-logo={} group-title=\"{}\",{}",
+                        c["name"], c["stream_icon"], vod_cats[c_id].cat_name, c_name
+                    )
+                    .expect("ERROR");
 
                     let url = format!(
                         "{}/movie/{}/{}/{}.{}",
@@ -261,4 +247,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("Found {total_streams} streams");
     Ok(())
+}
+
+fn create_category_file(cat_name: String, header: bool) -> VCat {
+    let f_name = sanitise_file_name::sanitise(static_format!("vod-{cat_name}.m3u"));
+    println!("Creating {f_name} for category {cat_name}");
+    let mut cat_output = match File::create(&f_name) {
+        Ok(f) => f,
+        Err(e) => {
+            panic!("Error creating {f_name:?}: {e:?}");
+        }
+    };
+    if !header {
+        writeln!(cat_output, "#EXTM3U").expect("ERROR");
+    }
+    VCat {
+        cat_name: cat_name.to_string(),
+        file_handle: cat_output,
+    }
 }
