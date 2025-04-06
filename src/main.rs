@@ -212,6 +212,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 for c in &json {
                     let c_name = c["name"].as_str().unwrap_or_default();
                     let c_id = c["category_id"].as_str().unwrap_or("-1");
+                    let stream_id = match c["stream_id"].is_string() {
+                        true => c["stream_id"].as_str().unwrap(),
+                        false => &c["stream_id"].as_i64().unwrap().to_string(),
+                    };
                     if !vod_cats.contains_key(c_id) {
                         let vcat =
                             create_category_file("No_Category".to_string(), args.no_vodm3u_header);
@@ -226,13 +230,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         c["name"], c["stream_icon"], vod_cats[c_id].cat_name, c_name
                     )
                     .expect("ERROR");
-
                     let url = format!(
                         "{}/movie/{}/{}/{}.{}",
                         args.server,
                         args.username,
                         args.password,
-                        c["stream_id"].as_str().unwrap_or_default(),
+                        stream_id,
                         c["container_extension"].as_str().unwrap_or_default()
                     );
                     if args.tvheadend_remux {
