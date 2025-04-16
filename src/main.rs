@@ -1,9 +1,14 @@
 use chrono::DateTime;
 use clap::Parser;
 use serde_json::Value;
+use similar::{ChangeTag, TextDiff};
 use static_str_ops::static_format;
 use std::collections::HashMap;
-use std::{cell::Cell, fs::File, io::Write};
+use std::{
+    cell::Cell,
+    fs::{File, read_to_string},
+    io::Write,
+};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about=None)]
@@ -26,6 +31,8 @@ struct Args {
     m3u_file: Option<String>,
     #[arg(short, long, group = "g")]
     account_info: bool,
+    #[arg(short, long)]
+    diff: bool,
 }
 
 #[derive(Debug)]
@@ -160,6 +167,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             total_streams += json.len();
             println!("Found {} streams", json.len());
             println!("Creating m3u file {}", m3u_file);
+            let mut all_chans: Vec<String> = Vec::new();
             for c in json {
                 let c_name = c["name"].as_str().unwrap_or_default();
                 let c_id = c["category_id"].as_str().unwrap_or_default();
@@ -179,6 +187,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     args.server, args.username, args.password, stream_id, stream_ext
                 )
                 .expect("ERROR");
+                all_chans.push(c_name.to_string());
+            }
+            if args.diff {
+                let original_contents = read_to_string("all_channels.txt").unwrap_or_default();
+                let mut output = match File::create("all_channels.txt") {
+                    Ok(f) => f,
+                    Err(e) => panic!("Error creating file: {e:?}"),
+                };
+                all_chans.sort();
+                for c in all_chans {
+                    writeln!(output, "{c}").expect("ERROR");
+                }
+                let new_contents = read_to_string("all_channels.txt").unwrap_or_default();
+                let cdiff = TextDiff::from_lines(&original_contents, &new_contents);
+                let mut diff_output = match File::create("all_channels_diff.txt") {
+                    Ok(f) => f,
+                    Err(e) => panic!("Error creating diff file: {e:?}"),
+                };
+                let mut changes = 0;
+                let mut inserted = 0;
+                let mut deleted = 0;
+                for change in cdiff.iter_all_changes() {
+                    let sign = match change.tag() {
+                        ChangeTag::Delete => {
+                            deleted += 1;
+                            "-"
+                        }
+                        ChangeTag::Insert => {
+                            inserted += 1;
+                            "+"
+                        }
+                        ChangeTag::Equal => " ",
+                    };
+                    if sign != " " {
+                        write!(diff_output, "{sign} {change}").expect("ERROR");
+                        changes += 1;
+                    }
+                }
+                println!("Added {inserted}, Deleted {deleted}, Total {changes}");
             }
         }
         Err(err) => {
