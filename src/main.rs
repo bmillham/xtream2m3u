@@ -27,9 +27,9 @@ struct Args {
     tvheadend_remux: bool,
     #[arg(short, long, help = "Do not add a header to the VOD M3U files")]
     no_vodm3u_header: bool,
-    #[arg(short, long, group = "g")]
+    #[arg(short, long)]
     m3u_file: Option<String>,
-    #[arg(short, long, group = "g")]
+    #[arg(short, long)]
     account_info: bool,
     #[arg(short, long)]
     diff: bool,
@@ -130,19 +130,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.account_info {
         std::process::exit(0);
     }
-    let m3u_file = match args.m3u_file {
-        Some(f) => f,
-        _ => {
-            println!("No m3u file supplied");
-            std::process::exit(0)
-        }
+
+    let mut output: Option<File> = match args.m3u_file {
+        Some(f) => match File::create(&f) {
+            Ok(file) => {
+                println!("Creating m3u file {}", f);
+                Some(file)
+            }
+            Err(e) => {
+                panic!("Error creating {f}: {e:?}");
+            }
+        },
+        _ => None,
     };
-    let mut output = match File::create(&m3u_file) {
-        Ok(f) => f,
-        Err(e) => {
-            panic!("Error creating {:?}: {e:?}", m3u_file);
-        }
-    };
+
     let mut categories = HashMap::new();
     let c_json: Vec<Value>;
     println!("Getting categories");
@@ -160,13 +161,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("Getting streams");
-    writeln!(output, "#EXTM3U").expect("ERROR");
+    let mut header_written = false;
+
     match reqwest::get(stream_url).await {
         Ok(resp) => {
             let json = resp.json::<Vec<Value>>().await?;
             total_streams += json.len();
             println!("Found {} streams", json.len());
-            println!("Creating m3u file {}", m3u_file);
+
             let mut all_chans: Vec<String> = Vec::new();
             for c in json {
                 let c_name = c["name"].as_str().unwrap_or_default();
@@ -175,18 +177,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     true => c["stream_id"].as_str().unwrap(),
                     false => &c["stream_id"].as_i64().unwrap().to_string(),
                 };
-                writeln!(
-                    output,
-                    "#EXTINF:-1 tvg-name={} tgv-logo={} group-title=\"{}\",{}",
-                    c["name"], c["stream_icon"], categories[c_id], c_name
-                )
-                .expect("ERROR");
-                writeln!(
-                    output,
-                    "{}/{}/{}/{}{}",
-                    args.server, args.username, args.password, stream_id, stream_ext
-                )
-                .expect("ERROR");
+                if let Some(ref mut o) = output {
+                    if !header_written {
+                        writeln!(o, "#EXTM3U").expect("ERROR");
+                        header_written = true;
+                    }
+                    writeln!(
+                        o,
+                        "#EXTINF:-1 tvg-name={} tgv-logo={} group-title=\"{}\",{}",
+                        c["name"], c["stream_icon"], categories[c_id], c_name
+                    )
+                    .expect("ERROR");
+                    writeln!(
+                        o,
+                        "{}/{}/{}/{}{}",
+                        args.server, args.username, args.password, stream_id, stream_ext
+                    )
+                    .expect("ERROR");
+                };
                 all_chans.push(c_name.to_string());
             }
             if args.diff {
@@ -310,7 +318,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-    println!("Found {total_streams} streams");
+    println!("Found {total_streams} total streams");
     Ok(())
 }
 
