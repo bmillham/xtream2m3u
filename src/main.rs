@@ -183,9 +183,10 @@ impl MFile {
             }
         }
     }
-    fn make_diff_file(&mut self) {
+    fn make_diff_file(&mut self) -> (u32, u32) {
         let all_name: String;
         let diff_name: String;
+
         let now = chrono::offset::Local::now()
             .format("%Y%m%d_%H%M%S")
             .to_string();
@@ -220,8 +221,8 @@ impl MFile {
         let cdiff = TextDiff::from_lines(&original_contents, &new_contents);
 
         let mut changes = 0;
-        let mut inserted = 0;
-        let mut deleted = 0;
+        let mut inserted: u32 = 0;
+        let mut deleted: u32 = 0;
         if cdiff.ratio() < 1.0 {
             let mut diff_output = match File::create(&diff_name) {
                 Ok(f) => f,
@@ -248,6 +249,7 @@ impl MFile {
         } else {
             println!("No changes for {}", self.group_name);
         }
+        (inserted, deleted)
     }
 }
 #[tokio::main]
@@ -276,6 +278,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let mut total_streams = 0;
+    let mut live_inserted = 0;
+    let mut live_deleted = 0;
+    let mut vod_inserted = 0;
+    let mut vod_deleted = 0;
+    let mut total_inserted = 0;
+    let mut total_deleted = 0;
 
     match reqwest::get(account_url).await {
         Ok(resp) => {
@@ -328,7 +336,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 total_streams += 1;
                             }
                             if args.diff {
-                                m3u_file.make_diff_file();
+                                let (ins, del) = m3u_file.make_diff_file();
+                                live_inserted += ins;
+                                live_deleted += del;
                             }
                         }
                         Err(err) => println!("Error {err:?}"),
@@ -364,7 +374,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 total_streams += 1;
                             }
                             if args.diff {
-                                m3u_file.make_diff_file();
+                                let (ins, del) = m3u_file.make_diff_file();
+                                vod_inserted += ins;
+                                vod_deleted += del;
                             }
                         }
                         Err(err) => println!("Error {err:?}"),
@@ -375,5 +387,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     println!("Found {total_streams} total streams");
+    if args.diff {
+        println!("Live channel changes: Added {live_inserted}, Deleted {live_deleted}");
+        println!("VOD channel changes: Added {vod_inserted}, Deleted {vod_deleted}");
+        println!(
+            "Total changed: Added {}, Deleted {}",
+            live_inserted + vod_inserted,
+            live_deleted + vod_deleted
+        );
+    }
     Ok(())
 }
