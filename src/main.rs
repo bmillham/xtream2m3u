@@ -277,13 +277,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         args.server, args.username, args.password
     );
 
-    let mut total_streams = 0;
     let mut live_inserted = 0;
     let mut live_deleted = 0;
     let mut vod_inserted = 0;
     let mut vod_deleted = 0;
-    let mut total_inserted = 0;
-    let mut total_deleted = 0;
+    let mut live_streams = 0;
+    let mut vod_streams = 0;
 
     match reqwest::get(account_url).await {
         Ok(resp) => {
@@ -328,12 +327,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 s_json.len(),
                                 c.get_category_name()
                             );
+                            live_streams += s_json.len();
                             let mut m3u_file =
                                 MFile::new(args.clone(), c.get_category_name().to_string(), false);
                             for stream in &s_json {
                                 m3u_file
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
-                                total_streams += 1;
                             }
                             if args.diff {
                                 let (ins, del) = m3u_file.make_diff_file();
@@ -366,12 +365,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 s_json.len(),
                                 c.get_category_name()
                             );
+                            vod_streams += s_json.len();
                             let mut m3u_file =
                                 MFile::new(args.clone(), c.get_category_name().to_string(), true);
                             for stream in &s_json {
                                 m3u_file
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
-                                total_streams += 1;
                             }
                             if args.diff {
                                 let (ins, del) = m3u_file.make_diff_file();
@@ -386,7 +385,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Err(err) => println!("Error {err:?}"),
         }
     }
-    println!("Found {total_streams} total streams");
+    if !args.no_m3u {
+        println!("Live Streams: {live_streams}");
+        println!("VOD Streams: {vod_streams}");
+        println!("Total Streams: {}", live_streams + vod_streams);
+    }
+
     if args.diff {
         println!("Live channel changes: Added {live_inserted}, Deleted {live_deleted}");
         println!("VOD channel changes: Added {vod_inserted}, Deleted {vod_deleted}");
