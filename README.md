@@ -37,11 +37,16 @@ Everything from here on is done in the xtream2m3u directory.
 + -u, --username: Your user name
 + -p --password: Your password
 + -t, --ts: Append a .ts to the stream URL in the generated m3u
-+ -m, --m3u-file: The name of the generated m3u file (Required unless -a is used)
++ -l, --live: Use live channels
++ -v, --vod: Use VOD channels
++ -d, --diff: Create a timestamped file of changes
++ -N, --no-m3u: Do not create a M3U. Useful for just getting channel changes
 + -a, --acount-info: Only show the account information
-+ -v, --vod: Create a file for each VOD category
 + -T, --tvheadend: Adds a remote call to ffmpeg for use in TVHeadend
 + -n, --no-vodm3u-header: Does not include the normal m3u header. Useful if you want to concatinate several m3u files.
+
+New changes are that M3U files are now created per category instead of one large M3U file
+The old -m option is removed.
 
 # Running
 
