@@ -6,8 +6,9 @@ use static_str_ops::static_format;
 use std::collections::HashMap;
 use std::fmt::Write as FmtWrite;
 use std::{
-    fs::{File, read_to_string},
+    fs::{File, create_dir_all, read_to_string},
     io::Write,
+    path::Path,
 };
 
 #[derive(Parser, Debug, Clone)]
@@ -29,18 +30,18 @@ struct Args {
 
     )]
     ts: String,
-    #[arg(short, long, help = "Create a M3U for each VOD category")]
-    vod: bool,
+    #[arg(short, long, help = "Create a M3U for each VOD category", num_args = 0..=1, default_value = "", default_missing_value="|VOD|")]
+    vod: String,
     #[arg(short = 'T', long, help = "Modify the stream URL for use in TVHeadend")]
     tvheadend_remux: bool,
     #[arg(short, long, help = "Do not add a header to the M3U files")]
     no_header: bool,
-    #[arg(short, long, help = "Create M3U/Diff for live channels")]
-    live: bool,
+    #[arg(short, long, help = "Create M3U/Diff for live channels", num_args = 0..=1, default_value = "", default_missing_value="|LIVE|")]
+    live: String,
     #[arg(short, long)]
     account_info: bool,
-    #[arg(short, long)]
-    diff: bool,
+    #[arg(short, long, num_args = 0..=1, default_value = "", default_missing_value = "|DIFF|")]
+    diff: String,
     #[arg(short = 'N', long, help = "Do not create M3U")]
     no_m3u: bool,
 }
@@ -135,16 +136,22 @@ struct ChanGroup {
 
 impl ChanGroup {
     fn new(args: Args, group_name: String, vod: bool) -> ChanGroup {
-        let mut f_name =
-            sanitise_file_name::sanitise(static_format!("{group_name}.m3u")).to_string();
-        if vod {
-            f_name = static_format!("vod_{f_name}").to_string();
-        }
+        let d_prefix = match vod {
+            true => "vod",
+            false => "live",
+        };
+        let output_dir = match args.live.as_str() {
+            "|LIVE|" | "." => Path::new(static_format!("{d_prefix}_m3u")),
+            d => Path::new(static_format!("{d_prefix}_{d}")),
+        };
+        let f_name = sanitise_file_name::sanitise(static_format!("{group_name}.m3u")).to_string();
+
         let mut handle = None;
         if !args.no_m3u {
-            handle = match File::create(&f_name) {
+            let _ = create_dir_all(output_dir);
+            handle = match File::create(output_dir.join(f_name)) {
                 Ok(f) => Some(f),
-                Err(e) => panic!("Error creating {f_name:?}: {e:?}"),
+                Err(e) => panic!("Error creating : {e:?}"),
             };
             if !args.no_header {
                 if let Some(ref mut h) = handle {
@@ -178,7 +185,7 @@ impl ChanGroup {
                     gname,
                     chan.get_name(),
                 )?;
-                let ext = match self.args.live {
+                let ext = match chan.get_ext().is_empty() {
                     true => self.args.ts.clone(),
                     false => chan.get_ext(),
                 };
@@ -195,32 +202,30 @@ impl ChanGroup {
         }
         Ok(())
     }
-    fn make_diff_file(&mut self) -> Result<(u32, u32), std::io::Error> {
-        let all_name: String;
-        let diff_name: String;
+    fn make_diff_file(&mut self, vod: bool) -> Result<(u32, u32), std::io::Error> {
         let mut new_contents = String::new();
 
         let now = chrono::offset::Local::now()
             .format("%Y%m%d_%H%M%S")
             .to_string();
-        if self.vod {
-            all_name =
-                sanitise_file_name::sanitise(static_format!("all_vod_{}.txt", self.group_name))
-                    .to_string();
-            diff_name = sanitise_file_name::sanitise(static_format!(
-                "all_vod_{}_diff_{now}.txt",
-                self.group_name
-            ))
-            .to_string();
-        } else {
-            all_name = sanitise_file_name::sanitise(static_format!("all_{}.txt", self.group_name))
-                .to_string();
-            diff_name = sanitise_file_name::sanitise(static_format!(
-                "all_{}_diff_{now}.txt",
-                self.group_name
-            ))
-            .to_string();
-        }
+        let d_prefix = match vod {
+            true => "vod",
+            false => "live",
+        };
+        let output_dir = match self.args.diff.as_str() {
+            "|DIFF|" | "." => Path::new(static_format!("{d_prefix}_diff")),
+            d => Path::new(static_format!("{d_prefix}_{d}")),
+        };
+        let _ = create_dir_all(output_dir);
+        let all_name = output_dir.join(sanitise_file_name::sanitise(static_format!(
+            "{}_all.txt",
+            self.group_name
+        )));
+        let diff_name = output_dir.join(sanitise_file_name::sanitise(static_format!(
+            "{}_diff_{now}.txt",
+            self.group_name
+        )));
+
         let original_contents = read_to_string(&all_name).unwrap_or_default();
         let mut all_handle = match File::create(&all_name) {
             Ok(f) => f,
@@ -240,7 +245,7 @@ impl ChanGroup {
         if cdiff.ratio() < 1.0 {
             let mut diff_output = match File::create(&diff_name) {
                 Ok(f) => f,
-                Err(e) => panic!("Error creating diff file {diff_name}: {e:?}"),
+                Err(e) => panic!("Error creating diff file {diff_name:?}: {e:?}"),
             };
             for change in cdiff.iter_all_changes() {
                 match change.tag() {
@@ -256,7 +261,7 @@ impl ChanGroup {
                 };
                 changes = inserted + deleted;
             }
-            println!("Added {inserted}, Deleted {deleted}, Total {changes} saved to {diff_name}");
+            println!("Added {inserted}, Deleted {deleted}, Total {changes} saved to {diff_name:?}");
         } else {
             println!("No changes for {}", self.group_name);
         }
@@ -319,7 +324,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(0);
     }
 
-    if args.live {
+    if !args.live.is_empty() {
         let mut categories = HashMap::new();
         let c_json: Vec<Value>;
         println!("Getting categories");
@@ -349,11 +354,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let _ = chan_group
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
                             }
-                            if args.diff {
-                                (live_inserted, live_deleted) = match chan_group.make_diff_file() {
-                                    Ok((i, d)) => (i + live_inserted, d + live_deleted),
-                                    Err(_) => (live_inserted, live_deleted),
-                                };
+                            if !args.diff.is_empty() {
+                                (live_inserted, live_deleted) =
+                                    match chan_group.make_diff_file(false) {
+                                        Ok((i, d)) => (i + live_inserted, d + live_deleted),
+                                        Err(_) => (live_inserted, live_deleted),
+                                    };
                             }
                         }
                         Err(err) => println!("Error {err:?}"),
@@ -364,7 +370,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    if args.vod {
+    if !args.vod.is_empty() {
         let c_json: Vec<Value>;
         println!("Getting VOD categories");
         match reqwest::get(vod_categories_url).await {
@@ -391,8 +397,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let _ = chan_group
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
                             }
-                            if args.diff {
-                                (vod_inserted, vod_deleted) = match chan_group.make_diff_file() {
+                            if !args.diff.is_empty() {
+                                (vod_inserted, vod_deleted) = match chan_group.make_diff_file(true)
+                                {
                                     Ok((i, d)) => (vod_inserted + i, vod_deleted + d),
                                     Err(_) => (vod_inserted, vod_deleted),
                                 };
@@ -406,16 +413,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     if !args.no_m3u {
-        println!("Live Streams: {live_streams}");
-        println!("VOD Streams: {vod_streams}");
+        if !args.live.is_empty() {
+            println!("Live Streams: {live_streams}");
+        }
+        if !args.vod.is_empty() {
+            println!("VOD Streams: {vod_streams}");
+        }
         println!("Total Streams: {}", live_streams + vod_streams);
     }
 
-    if args.diff {
-        if args.live {
+    if !args.diff.is_empty() {
+        if !args.live.is_empty() {
             println!("Live channel changes: Added {live_inserted}, Deleted {live_deleted}");
         }
-        if args.vod {
+        if !args.vod.is_empty() {
             println!("VOD channel changes: Added {vod_inserted}, Deleted {vod_deleted}");
         }
         println!(
