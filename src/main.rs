@@ -4,6 +4,7 @@ use serde_json::Value;
 use similar::{ChangeTag, TextDiff};
 use static_str_ops::static_format;
 use std::collections::HashMap;
+use std::fmt::Write as FmtWrite;
 use std::{
     fs::{File, read_to_string},
     io::Write,
@@ -189,6 +190,7 @@ impl ChanGroup {
     fn make_diff_file(&mut self) -> Result<(u32, u32), std::io::Error> {
         let all_name: String;
         let diff_name: String;
+        let mut new_contents = String::new();
 
         let now = chrono::offset::Local::now()
             .format("%Y%m%d_%H%M%S")
@@ -219,11 +221,12 @@ impl ChanGroup {
         self.all_channels.sort();
         for c in self.all_channels.clone() {
             writeln!(all_handle, "{c}")?;
+            let _ = writeln!(&mut new_contents, "{c}");
         }
-        let new_contents = read_to_string(&all_name).unwrap_or_default();
+
         let cdiff = TextDiff::from_lines(&original_contents, &new_contents);
 
-        let mut changes = 0;
+        let mut changes: u32 = 0;
         let mut inserted: u32 = 0;
         let mut deleted: u32 = 0;
         if cdiff.ratio() < 1.0 {
@@ -232,21 +235,18 @@ impl ChanGroup {
                 Err(e) => panic!("Error creating diff file {diff_name}: {e:?}"),
             };
             for change in cdiff.iter_all_changes() {
-                let sign = match change.tag() {
+                match change.tag() {
                     ChangeTag::Delete => {
                         deleted += 1;
-                        "-"
+                        write!(diff_output, "- {}", change.value())?;
                     }
                     ChangeTag::Insert => {
                         inserted += 1;
-                        "+"
+                        write!(diff_output, "+ {}", change.value())?;
                     }
-                    ChangeTag::Equal => " ",
+                    _ => (),
                 };
-                if sign != " " {
-                    write!(diff_output, "{sign} {change}")?;
-                    changes += 1;
-                }
+                changes = inserted + deleted;
             }
             println!("Added {inserted}, Deleted {deleted}, Total {changes} saved to {diff_name}");
         } else {
