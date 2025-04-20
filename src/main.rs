@@ -169,31 +169,28 @@ impl ChanGroup {
     fn add_channel(&mut self, gname: String, chan: Value) -> std::io::Result<()> {
         self.all_channels.push(chan.get_name());
         if !self.args.no_m3u {
-            match self.handle {
-                Some(ref mut h) => {
-                    writeln!(
-                        h,
-                        "#EXTINF:-1 tvg-name={} tgv-logo={} group-title=\"{}\",{}",
-                        chan.get_name(),
-                        chan["stream_icon"],
-                        gname,
-                        chan.get_name(),
-                    )?;
-                    let ext = match self.args.live {
-                        true => self.args.ts.clone(),
-                        false => chan.get_ext(),
-                    };
-                    writeln!(
-                        h,
-                        "{}/{}/{}/{}{}",
-                        self.args.server,
-                        self.args.username,
-                        self.args.password,
-                        chan.get_stream_id(),
-                        ext
-                    )?;
-                }
-                _ => (),
+            if let Some(ref mut h) = self.handle {
+                writeln!(
+                    h,
+                    "#EXTINF:-1 tvg-name={} tgv-logo={} group-title=\"{}\",{}",
+                    chan.get_name(),
+                    chan["stream_icon"],
+                    gname,
+                    chan.get_name(),
+                )?;
+                let ext = match self.args.live {
+                    true => self.args.ts.clone(),
+                    false => chan.get_ext(),
+                };
+                writeln!(
+                    h,
+                    "{}/{}/{}/{}{}",
+                    self.args.server,
+                    self.args.username,
+                    self.args.password,
+                    chan.get_stream_id(),
+                    ext
+                )?;
             }
         }
         Ok(())
