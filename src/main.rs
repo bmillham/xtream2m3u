@@ -80,7 +80,7 @@ impl ValueExtensions for Value {
             _ => self["user_info"]["exp_date"].as_i64().unwrap_or_default(),
         };
         DateTime::from_timestamp(exp_ts, 0)
-            .expect("Invalid Timestamp")
+            .unwrap_or_default()
             .to_string()
     }
     fn created(&self) -> String {
@@ -89,7 +89,7 @@ impl ValueExtensions for Value {
             _ => self["user_info"]["created_at"].as_i64().unwrap_or_default(),
         };
         DateTime::from_timestamp(created_ts, 0)
-            .expect("Invalid Timestamp")
+            .unwrap_or_default()
             .to_string()
     }
     fn max_connections(&self) -> i64 {
@@ -117,17 +117,16 @@ impl ValueExtensions for Value {
 }
 
 #[derive(Debug)]
-struct MFile {
+struct ChanGroup {
     args: Args,
-    //file_name: String,
     group_name: String,
     handle: Option<File>,
     vod: bool,
     all_channels: Vec<String>,
 }
 
-impl MFile {
-    fn new(args: Args, group_name: String, vod: bool) -> MFile {
+impl ChanGroup {
+    fn new(args: Args, group_name: String, vod: bool) -> ChanGroup {
         let mut f_name =
             sanitise_file_name::sanitise(static_format!("{group_name}.m3u")).to_string();
         if vod {
@@ -141,11 +140,11 @@ impl MFile {
             };
             if !args.no_header {
                 if let Some(ref mut h) = handle {
-                    writeln!(h, "#EXTM3U").expect("E")
+                    let _ = Self::add_header(h);
                 };
             }
         }
-        MFile {
+        ChanGroup {
             args,
             group_name,
             handle,
@@ -154,7 +153,12 @@ impl MFile {
         }
     }
 
-    fn add_channel(&mut self, gname: String, chan: Value) {
+    fn add_header(handle: &mut File) -> std::io::Result<()> {
+        writeln!(handle, "#EXTM3U")?;
+        Ok(())
+    }
+
+    fn add_channel(&mut self, gname: String, chan: Value) -> std::io::Result<()> {
         self.all_channels.push(chan.get_name());
         if !self.args.no_m3u {
             match self.handle {
@@ -166,8 +170,7 @@ impl MFile {
                         chan["stream_icon"],
                         gname,
                         chan.get_name(),
-                    )
-                    .expect("ERROR");
+                    )?;
                     writeln!(
                         h,
                         "{}/{}/{}/{}{}",
@@ -176,14 +179,14 @@ impl MFile {
                         self.args.password,
                         chan.get_stream_id(),
                         self.args.get_ext()
-                    )
-                    .expect("ERROR");
+                    )?;
                 }
                 _ => (),
             }
         }
+        Ok(())
     }
-    fn make_diff_file(&mut self) -> (u32, u32) {
+    fn make_diff_file(&mut self) -> Result<(u32, u32), std::io::Error> {
         let all_name: String;
         let diff_name: String;
 
@@ -215,7 +218,7 @@ impl MFile {
         };
         self.all_channels.sort();
         for c in self.all_channels.clone() {
-            writeln!(all_handle, "{c}").expect("E");
+            writeln!(all_handle, "{c}")?;
         }
         let new_contents = read_to_string(&all_name).unwrap_or_default();
         let cdiff = TextDiff::from_lines(&original_contents, &new_contents);
@@ -241,7 +244,7 @@ impl MFile {
                     ChangeTag::Equal => " ",
                 };
                 if sign != " " {
-                    write!(diff_output, "{sign} {change}").expect("ERROR");
+                    write!(diff_output, "{sign} {change}")?;
                     changes += 1;
                 }
             }
@@ -249,7 +252,7 @@ impl MFile {
         } else {
             println!("No changes for {}", self.group_name);
         }
-        (inserted, deleted)
+        Ok((inserted, deleted))
     }
 }
 #[tokio::main]
@@ -328,16 +331,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 c.get_category_name()
                             );
                             live_streams += s_json.len();
-                            let mut m3u_file =
-                                MFile::new(args.clone(), c.get_category_name().to_string(), false);
+                            let mut chan_group = ChanGroup::new(
+                                args.clone(),
+                                c.get_category_name().to_string(),
+                                false,
+                            );
                             for stream in &s_json {
-                                m3u_file
+                                let _ = chan_group
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
                             }
                             if args.diff {
-                                let (ins, del) = m3u_file.make_diff_file();
-                                live_inserted += ins;
-                                live_deleted += del;
+                                (live_inserted, live_deleted) = match chan_group.make_diff_file() {
+                                    Ok((i, d)) => (i + live_inserted, d + live_deleted),
+                                    Err(_) => (live_inserted, live_deleted),
+                                };
                             }
                         }
                         Err(err) => println!("Error {err:?}"),
@@ -366,16 +373,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 c.get_category_name()
                             );
                             vod_streams += s_json.len();
-                            let mut m3u_file =
-                                MFile::new(args.clone(), c.get_category_name().to_string(), true);
+                            let mut chan_group = ChanGroup::new(
+                                args.clone(),
+                                c.get_category_name().to_string(),
+                                true,
+                            );
                             for stream in &s_json {
-                                m3u_file
+                                let _ = chan_group
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
                             }
                             if args.diff {
-                                let (ins, del) = m3u_file.make_diff_file();
-                                vod_inserted += ins;
-                                vod_deleted += del;
+                                (vod_inserted, vod_deleted) = match chan_group.make_diff_file() {
+                                    Ok((i, d)) => (vod_inserted + i, vod_deleted + d),
+                                    Err(_) => (vod_inserted, vod_deleted),
+                                };
                             }
                         }
                         Err(err) => println!("Error {err:?}"),
@@ -392,8 +403,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if args.diff {
-        println!("Live channel changes: Added {live_inserted}, Deleted {live_deleted}");
-        println!("VOD channel changes: Added {vod_inserted}, Deleted {vod_deleted}");
+        if args.live {
+            println!("Live channel changes: Added {live_inserted}, Deleted {live_deleted}");
+        }
+        if args.vod {
+            println!("VOD channel changes: Added {vod_inserted}, Deleted {vod_deleted}");
+        }
         println!(
             "Total changed: Added {}, Deleted {}",
             live_inserted + vod_inserted,
