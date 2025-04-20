@@ -19,8 +19,16 @@ struct Args {
     username: String,
     #[arg(short, long)]
     password: String,
-    #[arg(short, long, help = "Append .ts to stream URLs")]
-    ts: bool,
+    #[arg(
+        short,
+        long,
+        help = "Append .ts to stream URLs",
+		num_args = 0..=1,
+        default_value = "",
+        default_missing_value = ".ts",
+
+    )]
+    ts: String,
     #[arg(short, long, help = "Create a M3U for each VOD category")]
     vod: bool,
     #[arg(short = 'T', long, help = "Modify the stream URL for use in TVHeadend")]
@@ -37,15 +45,6 @@ struct Args {
     no_m3u: bool,
 }
 
-impl Args {
-    fn get_ext(&self) -> String {
-        match self.ts {
-            true => ".ts".to_string(),
-            false => "".to_string(),
-        }
-    }
-}
-
 trait ValueExtensions {
     fn get_name(&self) -> String;
     fn get_category_name(&self) -> &str;
@@ -57,6 +56,7 @@ trait ValueExtensions {
     fn is_trial(&self) -> bool;
     fn status(&self) -> &str;
     fn active_cons(&self) -> &str;
+    fn get_ext(&self) -> String;
 }
 
 impl ValueExtensions for Value {
@@ -73,6 +73,13 @@ impl ValueExtensions for Value {
         match self["stream_id"].is_string() {
             true => self["stream_id"].as_str().unwrap().to_string(),
             false => self["stream_id"].as_i64().unwrap().to_string(),
+        }
+    }
+    fn get_ext(&self) -> String {
+        let x = self["container_extension"].as_str().unwrap_or_default();
+        match x.is_empty() {
+            true => "".to_string(),
+            false => format!(".{x}"),
         }
     }
     fn expires(&self) -> String {
@@ -172,6 +179,10 @@ impl ChanGroup {
                         gname,
                         chan.get_name(),
                     )?;
+                    let ext = match self.args.live {
+                        true => self.args.ts.clone(),
+                        false => chan.get_ext(),
+                    };
                     writeln!(
                         h,
                         "{}/{}/{}/{}{}",
@@ -179,7 +190,7 @@ impl ChanGroup {
                         self.args.username,
                         self.args.password,
                         chan.get_stream_id(),
-                        self.args.get_ext()
+                        ext
                     )?;
                 }
                 _ => (),
@@ -306,6 +317,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(err) => println!("Error: {err:?}"),
     }
+    println!("ts {}", args.ts);
     if args.account_info {
         std::process::exit(0);
     }
