@@ -28,14 +28,14 @@ struct Args {
         default_missing_value = ".ts",
     )]
     ts: String,
-    #[arg(short, long, help = "Create a M3U for each VOD category", num_args = 0..=1, default_value = "", default_missing_value="|VOD|")]
-    vod: String,
+    #[arg(short, long, help = "Create a M3U for each VOD category")]
+    vod: bool,
     #[arg(short = 'T', long, help = "Modify the stream URL for use in TVHeadend")]
     tvheadend_remux: bool,
     #[arg(short, long, help = "Do not add a header to the M3U files")]
     no_header: bool,
-    #[arg(short, long, help = "Create M3U/Diff for live channels", num_args = 0..=1, default_value = "", default_missing_value="|LIVE|")]
-    live: String,
+    #[arg(short, long, help = "Create M3U/Diff for live channels")]
+    live: bool,
     #[arg(short, long)]
     account_info: bool,
     #[arg(short, long, num_args = 0..=1, default_value = "", default_missing_value = "|DIFF|")]
@@ -333,7 +333,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(0);
     }
 
-    if !args.live.is_empty() {
+    if args.live {
         let c_json: Vec<Value>;
         println!("Getting categories");
         match reqwest::get(category_url).await {
@@ -377,7 +377,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    if !args.vod.is_empty() {
+    if args.vod {
         let c_json: Vec<Value>;
         println!("Getting VOD categories");
         match reqwest::get(vod_categories_url).await {
@@ -420,20 +420,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     if !args.no_m3u {
-        if !args.live.is_empty() {
+        if args.live {
             println!("Live Streams: {live_streams}");
         }
-        if !args.vod.is_empty() {
+        if args.vod {
             println!("VOD Streams: {vod_streams}");
         }
         println!("Total Streams: {}", live_streams + vod_streams);
     }
 
     if !args.diff.is_empty() {
-        if !args.live.is_empty() {
+        if args.live {
             println!("Live channel changes: Added {live_inserted}, Deleted {live_deleted}");
         }
-        if !args.vod.is_empty() {
+        if args.vod {
             println!("VOD channel changes: Added {vod_inserted}, Deleted {vod_deleted}");
         }
         println!(
