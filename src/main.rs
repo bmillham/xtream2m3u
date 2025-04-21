@@ -38,8 +38,8 @@ struct Args {
     live: bool,
     #[arg(short, long)]
     account_info: bool,
-    #[arg(short, long, num_args = 0..=1, default_value = "", default_missing_value = "|DIFF|")]
-    diff: String,
+    #[arg(short, long)]
+    diff: bool,
     #[arg(short = 'N', long, help = "Do not create M3U")]
     no_m3u: bool,
     #[arg(
@@ -146,7 +146,7 @@ impl ChanGroup {
         let od = Path::new(&args.output_dir);
         let output_dir = match vod {
             false => od.join("live_m3u"),
-            true => od.join("live_vod"),
+            true => od.join("vod_diff"),
         };
         let file_name =
             sanitise_file_name::sanitise(static_format!("{group_name}.m3u")).to_string();
@@ -211,15 +211,12 @@ impl ChanGroup {
         let now = chrono::offset::Local::now()
             .format("%Y%m%d_%H%M%S")
             .to_string();
-        let d_prefix = match self.vod {
-            true => "vod",
-            false => "live",
+        let od = Path::new(&self.args.output_dir);
+        let output_dir = match self.vod {
+            false => od.join("live_diff"),
+            true => od.join("vod_diff"),
         };
-        let output_dir = match self.args.diff.as_str() {
-            "|DIFF|" | "." => Path::new(static_format!("{d_prefix}_diff")),
-            d => Path::new(static_format!("{d_prefix}_{d}")),
-        };
-        let _ = create_dir_all(output_dir);
+        let _ = create_dir_all(&output_dir);
         let all_name = output_dir.join(sanitise_file_name::sanitise(static_format!(
             "{}_all.txt",
             self.group_name
@@ -362,7 +359,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let _ = chan_group
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
                             }
-                            if !args.diff.is_empty() {
+                            if args.diff {
                                 (live_inserted, live_deleted) = match chan_group.make_diff_file() {
                                     Ok((i, d)) => (i + live_inserted, d + live_deleted),
                                     Err(_) => (live_inserted, live_deleted),
@@ -405,7 +402,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let _ = chan_group
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
                             }
-                            if !args.diff.is_empty() {
+                            if args.diff {
                                 (vod_inserted, vod_deleted) = match chan_group.make_diff_file() {
                                     Ok((i, d)) => (vod_inserted + i, vod_deleted + d),
                                     Err(_) => (vod_inserted, vod_deleted),
@@ -429,7 +426,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Total Streams: {}", live_streams + vod_streams);
     }
 
-    if !args.diff.is_empty() {
+    if args.diff {
         if args.live {
             println!("Live channel changes: Added {live_inserted}, Deleted {live_deleted}");
         }
