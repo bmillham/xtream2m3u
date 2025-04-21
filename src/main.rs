@@ -26,7 +26,6 @@ struct Args {
 		num_args = 0..=1,
         default_value = "",
         default_missing_value = ".ts",
-
     )]
     ts: String,
     #[arg(short, long, help = "Create a M3U for each VOD category", num_args = 0..=1, default_value = "", default_missing_value="|VOD|")]
@@ -226,7 +225,7 @@ impl<'a> ChanGroup<'a> {
             "{}_diff_{now}.txt",
             self.group_name
         )));
-
+        let all_exists = std::fs::exists(&all_name)?;
         let original_contents = read_to_string(&all_name).unwrap_or_default();
         let mut all_handle = match File::create(&all_name) {
             Ok(f) => f,
@@ -238,33 +237,40 @@ impl<'a> ChanGroup<'a> {
             let _ = writeln!(&mut new_contents, "{c}");
         }
 
-        let cdiff = TextDiff::from_lines(&original_contents, &new_contents);
-
         let mut changes: u32 = 0;
         let mut inserted: u32 = 0;
         let mut deleted: u32 = 0;
-        if cdiff.ratio() < 1.0 {
-            let mut diff_output = match File::create(&diff_name) {
-                Ok(f) => f,
-                Err(e) => panic!("Error creating diff file {diff_name:?}: {e:?}"),
-            };
-            for change in cdiff.iter_all_changes() {
-                match change.tag() {
-                    ChangeTag::Delete => {
-                        deleted += 1;
-                        write!(diff_output, "- {}", change.value())?;
-                    }
-                    ChangeTag::Insert => {
-                        inserted += 1;
-                        write!(diff_output, "+ {}", change.value())?;
-                    }
-                    _ => (),
+
+        if all_exists {
+            let cdiff = TextDiff::from_lines(&original_contents, &new_contents);
+
+            if cdiff.ratio() < 1.0 {
+                let mut diff_output = match File::create(&diff_name) {
+                    Ok(f) => f,
+                    Err(e) => panic!("Error creating diff file {diff_name:?}: {e:?}"),
                 };
-                changes = inserted + deleted;
+                for change in cdiff.iter_all_changes() {
+                    match change.tag() {
+                        ChangeTag::Delete => {
+                            deleted += 1;
+                            write!(diff_output, "- {}", change.value())?;
+                        }
+                        ChangeTag::Insert => {
+                            inserted += 1;
+                            write!(diff_output, "+ {}", change.value())?;
+                        }
+                        _ => (),
+                    };
+                    changes = inserted + deleted;
+                }
+                println!(
+                    "Added {inserted}, Deleted {deleted}, Total {changes} saved to {diff_name:?}"
+                );
+            } else {
+                println!("No changes for {}", self.group_name);
             }
-            println!("Added {inserted}, Deleted {deleted}, Total {changes} saved to {diff_name:?}");
         } else {
-            println!("No changes for {}", self.group_name);
+            println!("Not creating diff file since no previous file exists");
         }
         Ok((inserted, deleted))
     }
