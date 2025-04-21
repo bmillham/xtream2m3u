@@ -136,13 +136,15 @@ struct ChanGroup {
 
 impl ChanGroup {
     fn new(args: Args, group_name: String, vod: bool) -> ChanGroup {
-        let d_prefix = match vod {
-            true => "vod",
-            false => "live",
-        };
-        let output_dir = match args.live.as_str() {
-            "|LIVE|" | "." => Path::new(static_format!("{d_prefix}_m3u")),
-            d => Path::new(static_format!("{d_prefix}_{d}")),
+        let output_dir = match vod {
+            false => match args.live.as_str() {
+                "|LIVE|" | "." => Path::new(static_format!("live_m3u")),
+                d => Path::new(static_format!("live_{d}")),
+            },
+            true => match args.vod.as_str() {
+                "|VOD|" | "." => Path::new(static_format!("vod_m3u")),
+                d => Path::new(static_format!("vod_{d}")),
+            },
         };
         let f_name = sanitise_file_name::sanitise(static_format!("{group_name}.m3u")).to_string();
 
@@ -167,6 +169,8 @@ impl ChanGroup {
             all_channels: vec![],
         }
     }
+
+    fn create_file(&mut self) {}
 
     fn add_header(handle: &mut File) -> std::io::Result<()> {
         writeln!(handle, "#EXTM3U")?;
