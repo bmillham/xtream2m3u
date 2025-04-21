@@ -160,7 +160,7 @@ impl<'a> ChanGroup<'a> {
         }
     }
 
-    fn create_file(&mut self) {
+    fn create_file(&mut self) -> std::io::Result<()> {
         let _ = create_dir_all(self.output_dir);
         self.handle = match File::create(self.output_dir.join(self.file_name.clone())) {
             Ok(f) => Some(f),
@@ -171,6 +171,7 @@ impl<'a> ChanGroup<'a> {
                 writeln!(h, "#EXTM3U").expect("ERROR");
             }
         }
+        Ok(())
     }
 
     fn add_channel(&mut self, gname: String, chan: Value) -> std::io::Result<()> {
@@ -202,13 +203,13 @@ impl<'a> ChanGroup<'a> {
         }
         Ok(())
     }
-    fn make_diff_file(&mut self, vod: bool) -> Result<(u32, u32), std::io::Error> {
+    fn make_diff_file(&mut self) -> Result<(u32, u32), std::io::Error> {
         let mut new_contents = String::new();
 
         let now = chrono::offset::Local::now()
             .format("%Y%m%d_%H%M%S")
             .to_string();
-        let d_prefix = match vod {
+        let d_prefix = match self.vod {
             true => "vod",
             false => "live",
         };
@@ -354,17 +355,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 c.get_category_name().to_string(),
                                 false,
                             );
-                            chan_group.create_file();
+                            let _ = chan_group.create_file();
                             for stream in &s_json {
                                 let _ = chan_group
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
                             }
                             if !args.diff.is_empty() {
-                                (live_inserted, live_deleted) =
-                                    match chan_group.make_diff_file(false) {
-                                        Ok((i, d)) => (i + live_inserted, d + live_deleted),
-                                        Err(_) => (live_inserted, live_deleted),
-                                    };
+                                (live_inserted, live_deleted) = match chan_group.make_diff_file() {
+                                    Ok((i, d)) => (i + live_inserted, d + live_deleted),
+                                    Err(_) => (live_inserted, live_deleted),
+                                };
                             }
                         }
                         Err(err) => println!("Error {err:?}"),
@@ -398,14 +398,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 c.get_category_name().to_string(),
                                 true,
                             );
-                            chan_group.create_file();
+                            let _ = chan_group.create_file();
                             for stream in &s_json {
                                 let _ = chan_group
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
                             }
                             if !args.diff.is_empty() {
-                                (vod_inserted, vod_deleted) = match chan_group.make_diff_file(true)
-                                {
+                                (vod_inserted, vod_deleted) = match chan_group.make_diff_file() {
                                     Ok((i, d)) => (vod_inserted + i, vod_deleted + d),
                                     Err(_) => (vod_inserted, vod_deleted),
                                 };
