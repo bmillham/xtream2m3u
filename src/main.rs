@@ -135,7 +135,8 @@ struct ChanGroup {
     args: Args,
     group_name: String,
     file_name: String,
-    output_dir: PathBuf,
+    m3u_dir: PathBuf,
+    diff_dir: PathBuf,
     handle: Option<File>,
     vod: bool,
     all_channels: Vec<String>,
@@ -143,10 +144,15 @@ struct ChanGroup {
 
 impl ChanGroup {
     fn new(args: Args, group_name: String, vod: bool) -> ChanGroup {
-        let od = Path::new(&args.output_dir);
-        let output_dir = match vod {
-            false => od.join("live_m3u"),
-            true => od.join("vod_diff"),
+        let md = Path::new(&args.output_dir);
+        let m3u_dir = match vod {
+            false => md.join("live_m3u"),
+            true => md.join("vod_m3u"),
+        };
+        let dd = Path::new(&args.output_dir);
+        let diff_dir = match vod {
+            false => dd.join("live_diff"),
+            true => dd.join("vod_diff"),
         };
         let file_name =
             sanitise_file_name::sanitise(static_format!("{group_name}.m3u")).to_string();
@@ -155,7 +161,8 @@ impl ChanGroup {
             args,
             group_name,
             file_name,
-            output_dir,
+            m3u_dir,
+            diff_dir,
             handle: None,
             vod,
             all_channels: vec![],
@@ -163,8 +170,8 @@ impl ChanGroup {
     }
 
     fn create_file(&mut self) -> std::io::Result<()> {
-        let _ = create_dir_all(self.output_dir.clone());
-        self.handle = match File::create(self.output_dir.join(self.file_name.clone())) {
+        let _ = create_dir_all(self.m3u_dir.clone());
+        self.handle = match File::create(self.m3u_dir.join(self.file_name.clone())) {
             Ok(f) => Some(f),
             Err(e) => panic!("Error creating : {e:?}"),
         };
@@ -211,20 +218,19 @@ impl ChanGroup {
         let now = chrono::offset::Local::now()
             .format("%Y%m%d_%H%M%S")
             .to_string();
-        let od = Path::new(&self.args.output_dir);
-        let output_dir = match self.vod {
-            false => od.join("live_diff"),
-            true => od.join("vod_diff"),
-        };
-        let _ = create_dir_all(&output_dir);
-        let all_name = output_dir.join(sanitise_file_name::sanitise(static_format!(
-            "{}_all.txt",
-            self.group_name
-        )));
-        let diff_name = output_dir.join(sanitise_file_name::sanitise(static_format!(
-            "{}_diff_{now}.txt",
-            self.group_name
-        )));
+        let _ = create_dir_all(&self.diff_dir);
+        let all_name = self
+            .diff_dir
+            .join(sanitise_file_name::sanitise(static_format!(
+                "{}_all.txt",
+                self.group_name
+            )));
+        let diff_name = self
+            .diff_dir
+            .join(sanitise_file_name::sanitise(static_format!(
+                "{}_diff_{now}.txt",
+                self.group_name
+            )));
         let all_exists = std::fs::exists(&all_name)?;
         let original_contents = read_to_string(&all_name).unwrap_or_default();
         let mut all_handle = match File::create(&all_name) {
