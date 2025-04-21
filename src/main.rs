@@ -3,7 +3,6 @@ use clap::Parser;
 use serde_json::Value;
 use similar::{ChangeTag, TextDiff};
 use static_str_ops::static_format;
-use std::collections::HashMap;
 use std::fmt::Write as FmtWrite;
 use std::{
     fs::{File, create_dir_all, read_to_string},
@@ -126,16 +125,18 @@ impl ValueExtensions for Value {
 }
 
 #[derive(Debug)]
-struct ChanGroup {
+struct ChanGroup<'a> {
     args: Args,
     group_name: String,
+    file_name: String,
+    output_dir: &'a Path,
     handle: Option<File>,
     vod: bool,
     all_channels: Vec<String>,
 }
 
-impl ChanGroup {
-    fn new(args: Args, group_name: String, vod: bool) -> ChanGroup {
+impl<'a> ChanGroup<'a> {
+    fn new(args: Args, group_name: String, vod: bool) -> ChanGroup<'a> {
         let output_dir = match vod {
             false => match args.live.as_str() {
                 "|LIVE|" | "." => Path::new(static_format!("live_m3u")),
@@ -146,35 +147,31 @@ impl ChanGroup {
                 d => Path::new(static_format!("vod_{d}")),
             },
         };
-        let f_name = sanitise_file_name::sanitise(static_format!("{group_name}.m3u")).to_string();
+        let file_name =
+            sanitise_file_name::sanitise(static_format!("{group_name}.m3u")).to_string();
 
-        let mut handle = None;
-        if !args.no_m3u {
-            let _ = create_dir_all(output_dir);
-            handle = match File::create(output_dir.join(f_name)) {
-                Ok(f) => Some(f),
-                Err(e) => panic!("Error creating : {e:?}"),
-            };
-            if !args.no_header {
-                if let Some(ref mut h) = handle {
-                    let _ = Self::add_header(h);
-                };
-            }
-        }
         ChanGroup {
             args,
             group_name,
-            handle,
+            file_name,
+            output_dir,
+            handle: None,
             vod,
             all_channels: vec![],
         }
     }
 
-    fn create_file(&mut self) {}
-
-    fn add_header(handle: &mut File) -> std::io::Result<()> {
-        writeln!(handle, "#EXTM3U")?;
-        Ok(())
+    fn create_file(&mut self) {
+        let _ = create_dir_all(self.output_dir);
+        self.handle = match File::create(self.output_dir.join(self.file_name.clone())) {
+            Ok(f) => Some(f),
+            Err(e) => panic!("Error creating : {e:?}"),
+        };
+        if !self.args.no_header {
+            if let Some(ref mut h) = self.handle {
+                writeln!(h, "#EXTM3U").expect("ERROR");
+            }
+        }
     }
 
     fn add_channel(&mut self, gname: String, chan: Value) -> std::io::Result<()> {
@@ -323,13 +320,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(err) => println!("Error: {err:?}"),
     }
-    println!("ts {}", args.ts);
     if args.account_info {
         std::process::exit(0);
     }
 
     if !args.live.is_empty() {
-        let mut categories = HashMap::new();
         let c_json: Vec<Value>;
         println!("Getting categories");
         match reqwest::get(category_url).await {
@@ -337,7 +332,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 c_json = resp.json::<Vec<Value>>().await?;
                 println!("Found {} categories", c_json.len());
                 for c in &c_json {
-                    categories.insert(c.get_category_id(), c.get_category_name());
                     match reqwest::get(format!("{}{}", stream_by_category_url, c.get_category_id()))
                         .await
                     {
@@ -354,6 +348,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 c.get_category_name().to_string(),
                                 false,
                             );
+                            chan_group.create_file();
                             for stream in &s_json {
                                 let _ = chan_group
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
@@ -397,6 +392,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 c.get_category_name().to_string(),
                                 true,
                             );
+                            chan_group.create_file();
                             for stream in &s_json {
                                 let _ = chan_group
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
