@@ -168,7 +168,7 @@ impl<'a> ChanGroup<'a> {
         };
         if !self.args.no_header {
             if let Some(ref mut h) = self.handle {
-                writeln!(h, "#EXTM3U").expect("ERROR");
+                writeln!(h, "#EXTM3U")?;
             }
         }
         Ok(())
