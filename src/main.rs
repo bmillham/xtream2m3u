@@ -7,7 +7,7 @@ use std::fmt::Write as FmtWrite;
 use std::{
     fs::{File, create_dir_all, read_to_string},
     io::Write,
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 #[derive(Parser, Debug, Clone)]
@@ -42,6 +42,13 @@ struct Args {
     diff: String,
     #[arg(short = 'N', long, help = "Do not create M3U")]
     no_m3u: bool,
+    #[arg(
+        short,
+        long,
+        help = "Where to save M3U/Diff files [Default current directory]",
+        default_value = ""
+    )]
+    output_dir: String,
 }
 
 trait ValueExtensions {
@@ -124,27 +131,22 @@ impl ValueExtensions for Value {
 }
 
 #[derive(Debug)]
-struct ChanGroup<'a> {
+struct ChanGroup {
     args: Args,
     group_name: String,
     file_name: String,
-    output_dir: &'a Path,
+    output_dir: PathBuf,
     handle: Option<File>,
     vod: bool,
     all_channels: Vec<String>,
 }
 
-impl<'a> ChanGroup<'a> {
-    fn new(args: Args, group_name: String, vod: bool) -> ChanGroup<'a> {
+impl ChanGroup {
+    fn new(args: Args, group_name: String, vod: bool) -> ChanGroup {
+        let od = Path::new(&args.output_dir);
         let output_dir = match vod {
-            false => match args.live.as_str() {
-                "|LIVE|" | "." => Path::new(static_format!("live_m3u")),
-                d => Path::new(static_format!("live_{d}")),
-            },
-            true => match args.vod.as_str() {
-                "|VOD|" | "." => Path::new(static_format!("vod_m3u")),
-                d => Path::new(static_format!("vod_{d}")),
-            },
+            false => od.join("live_m3u"),
+            true => od.join("live_vod"),
         };
         let file_name =
             sanitise_file_name::sanitise(static_format!("{group_name}.m3u")).to_string();
@@ -161,7 +163,7 @@ impl<'a> ChanGroup<'a> {
     }
 
     fn create_file(&mut self) -> std::io::Result<()> {
-        let _ = create_dir_all(self.output_dir);
+        let _ = create_dir_all(self.output_dir.clone());
         self.handle = match File::create(self.output_dir.join(self.file_name.clone())) {
             Ok(f) => Some(f),
             Err(e) => panic!("Error creating : {e:?}"),
