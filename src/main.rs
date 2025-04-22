@@ -7,7 +7,7 @@ use std::fmt::Write as FmtWrite;
 use std::{
     fs::{File, create_dir_all, read_to_string},
     io::Write,
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
 #[derive(Parser, Debug, Clone)]
