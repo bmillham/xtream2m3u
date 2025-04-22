@@ -138,7 +138,7 @@ struct ChanGroup {
     m3u_dir: PathBuf,
     diff_dir: PathBuf,
     handle: Option<File>,
-    vod: bool,
+    //vod: bool,
     all_channels: Vec<String>,
 }
 
@@ -164,7 +164,7 @@ impl ChanGroup {
             m3u_dir,
             diff_dir,
             handle: None,
-            vod,
+            //vod,
             all_channels: vec![],
         }
     }
