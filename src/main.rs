@@ -170,7 +170,12 @@ impl ChanGroup {
     }
 
     fn create_file(&mut self) -> std::io::Result<()> {
-        let _ = create_dir_all(self.m3u_dir.clone());
+        if !self.args.no_m3u {
+            if let Ok(false) = std::fs::exists(&self.m3u_dir) {
+                println!("Creating {:?}", self.m3u_dir);
+                let _ = create_dir_all(&self.m3u_dir);
+            };
+        }
         self.handle = match File::create(self.m3u_dir.join(self.file_name.clone())) {
             Ok(f) => Some(f),
             Err(e) => panic!("Error creating : {e:?}"),
@@ -218,7 +223,10 @@ impl ChanGroup {
         let now = chrono::offset::Local::now()
             .format("%Y%m%d_%H%M%S")
             .to_string();
-        let _ = create_dir_all(&self.diff_dir);
+        if let Ok(false) = std::fs::exists(&self.diff_dir) {
+            println!("Creating {:?}", self.diff_dir);
+            let _ = create_dir_all(&self.diff_dir);
+        };
         let all_name = self
             .diff_dir
             .join(sanitise_file_name::sanitise(static_format!(
@@ -360,7 +368,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 c.get_category_name().to_string(),
                                 false,
                             );
-                            let _ = chan_group.create_file();
+                            if !args.no_m3u {
+                                let _ = chan_group.create_file();
+                            }
                             for stream in &s_json {
                                 let _ = chan_group
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
@@ -403,7 +413,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 c.get_category_name().to_string(),
                                 true,
                             );
-                            let _ = chan_group.create_file();
+                            if !args.no_m3u {
+                                let _ = chan_group.create_file();
+                            }
                             for stream in &s_json {
                                 let _ = chan_group
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
