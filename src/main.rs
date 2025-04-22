@@ -40,8 +40,8 @@ struct Args {
     account_info: bool,
     #[arg(short, long)]
     diff: bool,
-    #[arg(short = 'N', long, help = "Do not create M3U")]
-    no_m3u: bool,
+    #[arg(short, long, help = "Create M3U files")]
+    m3u: bool,
     #[arg(
         short,
         long,
@@ -167,7 +167,7 @@ impl ChanGroup {
     }
 
     fn create_file(&mut self) -> std::io::Result<()> {
-        if !self.args.no_m3u {
+        if self.args.m3u {
             if let Ok(false) = std::fs::exists(&self.m3u_dir) {
                 println!("Creating {:?}", self.m3u_dir);
                 let _ = create_dir_all(&self.m3u_dir);
@@ -187,7 +187,7 @@ impl ChanGroup {
 
     fn add_channel(&mut self, gname: String, chan: Value) -> std::io::Result<()> {
         self.all_channels.push(chan.get_name());
-        if !self.args.no_m3u {
+        if self.args.m3u {
             if let Some(ref mut h) = self.handle {
                 writeln!(
                     h,
@@ -290,6 +290,10 @@ impl ChanGroup {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
+    if (args.live || args.vod) && (!args.live || !args.diff) {
+        eprintln!("You must use -m/--m3u and/or -d/--diff");
+        std::process::exit(1);
+    }
     let account_url = format!(
         "{}/player_api.php?username={}&password={}",
         args.server, args.username, args.password
@@ -365,7 +369,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 c.get_category_name().to_string(),
                                 false,
                             );
-                            if !args.no_m3u {
+                            if args.m3u {
                                 let _ = chan_group.create_file();
                             }
                             for stream in &s_json {
@@ -410,7 +414,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 c.get_category_name().to_string(),
                                 true,
                             );
-                            if !args.no_m3u {
+                            if args.m3u {
                                 let _ = chan_group.create_file();
                             }
                             for stream in &s_json {
@@ -431,7 +435,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Err(err) => println!("Error {err:?}"),
         }
     }
-    if !args.no_m3u {
+    if args.m3u {
         if args.live {
             println!("Live Streams: {live_streams}");
         }
