@@ -40,16 +40,14 @@ Everything from here on is done in the xtream2m3u directory.
 + -l, --live: Use live channels
 + -v, --vod: Use VOD channels
 + -d, --diff: Create a timestamped file of changes
-+ -N, --no-m3u: Do not create a M3U. Useful for just getting channel changes
++ -m, --m3u: Create a M3U.
 + -a, --acount-info: Only show the account information
 + -T, --tvheadend: Adds a remote call to ffmpeg for use in TVHeadend (Option does not do anything at this time)
 + -n, --no-header: Does not include the normal m3u header. Useful if you want to concatinate several m3u files.
 + -o, --output-dir: Directory to save output files in. Defaults to current directory.
 
-New changes are that M3U files are now created per category instead of one large M3U file
-The old -m option is removed.
-
 Output files are saved in live\_m3u, live\_diff, vod\_m3u and vod\_diff
+If -l and/or -v are used then -d and/or -m must also be used.
 
 # Running
 
