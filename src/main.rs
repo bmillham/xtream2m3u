@@ -57,6 +57,7 @@ trait ValueExtensions {
     fn get_category_id(&self) -> &str;
     fn get_stream_id(&self) -> String;
     fn expires(&self) -> String;
+
     fn created(&self) -> String;
     fn max_connections(&self) -> i64;
     fn is_trial(&self) -> bool;
@@ -138,7 +139,6 @@ struct ChanGroup {
     m3u_dir: PathBuf,
     diff_dir: PathBuf,
     handle: Option<File>,
-    //vod: bool,
     all_channels: Vec<String>,
 }
 
@@ -164,7 +164,6 @@ impl ChanGroup {
             m3u_dir,
             diff_dir,
             handle: None,
-            //vod,
             all_channels: vec![],
         }
     }
