@@ -144,15 +144,13 @@ struct ChanGroup {
 
 impl ChanGroup {
     fn new(args: Args, group_name: String, vod: bool) -> ChanGroup {
-        let md = Path::new(&args.output_dir);
-        let m3u_dir = match vod {
-            false => md.join("live_m3u"),
-            true => md.join("vod_m3u"),
+        let m3u_dir: PathBuf = match vod {
+            true => [&args.output_dir, "vod_m3u"].iter().collect(),
+            false => [&args.output_dir, "live_m3u"].iter().collect(),
         };
-        let dd = Path::new(&args.output_dir);
-        let diff_dir = match vod {
-            false => dd.join("live_diff"),
-            true => dd.join("vod_diff"),
+        let diff_dir: PathBuf = match vod {
+            true => [&args.output_dir, "vod_diff"].iter().collect(),
+            false => [&args.output_dir, "live_diff"].iter().collect(),
         };
         let file_name =
             sanitise_file_name::sanitise(static_format!("{group_name}.m3u")).to_string();
