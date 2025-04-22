@@ -45,8 +45,8 @@ struct Args {
     #[arg(
         short,
         long,
-        help = "Where to save M3U/Diff files [Default current directory]",
-        default_value = ""
+        help = "Where to save M3U/Diff files",
+        default_value = "."
     )]
     output_dir: String,
 }
