@@ -1,5 +1,7 @@
+//use self::models::*;
 use chrono::DateTime;
 use clap::Parser;
+use diesel::prelude::*;
 use serde_json::Value;
 use similar::{ChangeTag, TextDiff};
 use static_str_ops::static_format;
@@ -288,6 +290,11 @@ impl ChanGroup {
 }
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    use xtream2m3u::models::*;
+    use xtream2m3u::schema::categories::dsl::*;
+    use xtream2m3u::schema::types;
+    use xtream2m3u::schema::types::dsl::*;
+    use xtream2m3u::*;
     let args = Args::parse();
 
     if (args.live || args.vod) && (!args.live || !args.diff) {
@@ -341,6 +348,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(err) => println!("Error: {err:?}"),
     }
+    let connection = &mut establish_connection();
+    if let Ok(n) = create_type(connection, "live") {
+        println!("Added new type {}", n.id);
+    };
+    let res = types
+        .select(Types::as_select())
+        .load(connection)
+        .expect("ERROR");
+    for t in res {
+        println!("{}: {}", t.id, t.name);
+    }
+    if let Ok(n) = create_category(connection, &1, "another test two", None) {
+        println!("Added new category: {}", n.id);
+    };
+
+    let res = categories
+        .select(Categories::as_select())
+        .load(connection)
+        .expect("ERROR");
+
+    for c in res {
+        println!("{}: {} {} {:?}", c.id, c.types_id, c.name, c.added);
+    }
+    let live = types::table
+        .filter(types::name.eq("live"))
+        .select(Types::as_select())
+        .get_result(connection)?;
+    let cats = Categories::belonging_to(&live)
+        .select(Categories::as_select())
+        .load(connection)?;
+    println!("cats {cats:?}");
     if args.account_info {
         std::process::exit(0);
     }
@@ -353,6 +391,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 c_json = resp.json::<Vec<Value>>().await?;
                 println!("Found {} categories", c_json.len());
                 for c in &c_json {
+                    if let Ok(n) = create_category(connection, &1, c.get_category_name(), None) {
+                        println!("Added new category: {} {}", n.id, n.name);
+                    };
                     match reqwest::get(format!("{}{}", stream_by_category_url, c.get_category_id()))
                         .await
                     {

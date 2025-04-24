@@ -1,0 +1,37 @@
+use crate::schema::{categories, types};
+use chrono::NaiveDateTime;
+use diesel::prelude::*;
+use serde::Deserialize;
+
+#[derive(Queryable, Identifiable, Selectable, Debug, PartialEq)]
+#[diesel(table_name = crate::schema::types)]
+#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+pub struct Types {
+    pub id: i32,
+    pub name: String,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = types)]
+pub struct NewType<'a> {
+    pub name: &'a str,
+}
+
+#[derive(Queryable, Selectable, Identifiable, Associations, Debug, PartialEq, Deserialize)]
+#[diesel(table_name = crate::schema::categories)]
+#[diesel(belongs_to(Types))]
+#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+pub struct Categories {
+    pub id: i32,
+    pub types_id: i32,
+    pub name: String,
+    pub added: Option<NaiveDateTime>,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = categories)]
+pub struct NewCategory<'a> {
+    pub types_id: &'a i32,
+    pub name: &'a str,
+    pub added: Option<NaiveDateTime>,
+}

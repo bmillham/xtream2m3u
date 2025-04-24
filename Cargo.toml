@@ -1,11 +1,12 @@
 [package]
 name = "xtream2m3u"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2024"
 
 [dependencies]
-chrono = "0.4.40"
+chrono = { version = "0.4.40", features = ["serde"] }
 clap = { version = "4.5.37", features = ["derive"] }
+diesel = { version = "2.2.9", features = ["sqlite", "returning_clauses_for_sqlite_3_35", "chrono"] }
 m3u_parser = { version = "0.1.2" }
 reqwest = { version = "0.12.15", features = ["json"] }
 sanitise-file-name = "1.0.0"
