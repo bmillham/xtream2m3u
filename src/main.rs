@@ -216,7 +216,9 @@ impl ChanGroup {
         Ok(())
     }
     fn make_diff_file(&mut self) -> Result<(u32, u32), std::io::Error> {
+        use xtream2m3u::*;
         let mut new_contents = String::new();
+        let connection = &mut establish_connection();
 
         let now = chrono::offset::Local::now()
             .format("%Y%m%d_%H%M%S")
@@ -266,6 +268,7 @@ impl ChanGroup {
                         ChangeTag::Delete => {
                             deleted += 1;
                             write!(diff_output, "- {}", change.value())?;
+                            delete_channel(connection, change.value());
                         }
                         ChangeTag::Insert => {
                             inserted += 1;

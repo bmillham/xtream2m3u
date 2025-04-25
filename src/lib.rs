@@ -101,3 +101,13 @@ pub fn create_channel(
         .returning(Channels::as_returning())
         .get_result(conn)
 }
+
+pub fn delete_channel(conn: &mut SqliteConnection, c_name: &str) {
+    use crate::schema::channels::dsl::*;
+
+    let res = diesel::update(channels)
+        .filter(name.eq(c_name))
+        .set(deleted.eq(None::<NaiveDateTime>))
+        .execute(conn);
+    println!("Deleted {res:?}");
+}
