@@ -1,7 +1,6 @@
 //use self::models::*;
 use chrono::DateTime;
 use clap::Parser;
-use diesel::prelude::*;
 use serde_json::Value;
 use similar::{ChangeTag, TextDiff};
 use static_str_ops::static_format;
@@ -290,10 +289,6 @@ impl ChanGroup {
 }
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use xtream2m3u::models::*;
-    use xtream2m3u::schema::categories::dsl::*;
-    use xtream2m3u::schema::types;
-    use xtream2m3u::schema::types::dsl::*;
     use xtream2m3u::*;
     let args = Args::parse();
 
@@ -349,41 +344,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(err) => println!("Error: {err:?}"),
     }
     let connection = &mut establish_connection();
-    if let Ok(n) = create_type(connection, "live") {
-        println!("Added new type {}", n.id);
-    };
-    let res = types
-        .select(Types::as_select())
-        .load(connection)
-        .expect("ERROR");
-    for t in res {
-        println!("{}: {}", t.id, t.name);
-    }
-    if let Ok(n) = create_category(connection, &1, "another test two", None) {
-        println!("Added new category: {}", n.id);
-    };
 
-    let res = categories
-        .select(Categories::as_select())
-        .load(connection)
-        .expect("ERROR");
-
-    for c in res {
-        println!("{}: {} {} {:?}", c.id, c.types_id, c.name, c.added);
-    }
-    let live = types::table
-        .filter(types::name.eq("live"))
-        .select(Types::as_select())
-        .get_result(connection)?;
-    let cats = Categories::belonging_to(&live)
-        .select(Categories::as_select())
-        .load(connection)?;
-    println!("cats {cats:?}");
     if args.account_info {
         std::process::exit(0);
     }
 
     if args.live {
+        // Create the live database entry
+        let type_id = find_or_create_type(connection, "live");
         let c_json: Vec<Value>;
         println!("Getting categories");
         match reqwest::get(category_url).await {
@@ -391,7 +359,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 c_json = resp.json::<Vec<Value>>().await?;
                 println!("Found {} categories", c_json.len());
                 for c in &c_json {
-                    if let Ok(n) = create_category(connection, &1, c.get_category_name(), None) {
+                    if let Ok(n) =
+                        create_category(connection, &type_id, c.get_category_name(), None)
+                    {
                         println!("Added new category: {} {}", n.id, n.name);
                     };
                     match reqwest::get(format!("{}{}", stream_by_category_url, c.get_category_id()))
@@ -433,6 +403,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if args.vod {
+        // Create the vod type database entry
+        let type_id = find_or_create_type(connection, "vod");
         let c_json: Vec<Value>;
         println!("Getting VOD categories");
         match reqwest::get(vod_categories_url).await {
@@ -440,6 +412,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 c_json = resp.json::<Vec<Value>>().await?;
                 println!("Found {} VOD categories", c_json.len());
                 for c in &c_json {
+                    if let Ok(n) =
+                        create_category(connection, &type_id, c.get_category_name(), None)
+                    {
+                        println!("Added new category: {} {}", n.id, n.name);
+                    };
                     match reqwest::get(format!("{}{}", vod_streams_url, c.get_category_id())).await
                     {
                         Ok(s_resp) => {

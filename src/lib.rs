@@ -10,6 +10,24 @@ pub fn establish_connection() -> SqliteConnection {
         .unwrap_or_else(|e| panic!("Error {e} connecting to {database_url}"))
 }
 
+pub fn find_or_create_type(conn: &mut SqliteConnection, t_name: &str) -> i32 {
+    use crate::schema::types::dsl::*;
+
+    match types.filter(name.eq(t_name)).limit(1).load::<Types>(conn) {
+        Ok(v) => match v.is_empty() {
+            true => match create_type(conn, t_name) {
+                Ok(t) => t.id,
+                _ => -2,
+            },
+            false => v[0].id,
+        },
+        Err(e) => {
+            println!("Error creating type: {e:?}");
+            -1
+        }
+    }
+}
+
 pub fn create_type(
     conn: &mut SqliteConnection,
     name: &str,
