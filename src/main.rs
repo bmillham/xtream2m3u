@@ -359,11 +359,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 c_json = resp.json::<Vec<Value>>().await?;
                 println!("Found {} categories", c_json.len());
                 for c in &c_json {
-                    if let Ok(n) =
-                        create_category(connection, &type_id, c.get_category_name(), None)
-                    {
-                        println!("Added new category: {} {}", n.id, n.name);
-                    };
+                    let cat_id =
+                        find_or_create_category(connection, &type_id, c.get_category_name());
                     match reqwest::get(format!("{}{}", stream_by_category_url, c.get_category_id()))
                         .await
                     {
@@ -386,6 +383,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             for stream in &s_json {
                                 let _ = chan_group
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
+                                let t =
+                                    create_channel(connection, &cat_id, &stream.get_name(), None);
                             }
                             if args.diff {
                                 (live_inserted, live_deleted) = match chan_group.make_diff_file() {
@@ -412,11 +411,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 c_json = resp.json::<Vec<Value>>().await?;
                 println!("Found {} VOD categories", c_json.len());
                 for c in &c_json {
-                    if let Ok(n) =
-                        create_category(connection, &type_id, c.get_category_name(), None)
-                    {
-                        println!("Added new category: {} {}", n.id, n.name);
-                    };
+                    let cat_id =
+                        find_or_create_category(connection, &type_id, c.get_category_name());
                     match reqwest::get(format!("{}{}", vod_streams_url, c.get_category_id())).await
                     {
                         Ok(s_resp) => {
@@ -438,6 +434,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             for stream in &s_json {
                                 let _ = chan_group
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
+                                let t =
+                                    create_channel(connection, &cat_id, &stream.get_name(), None);
                             }
                             if args.diff {
                                 (vod_inserted, vod_deleted) = match chan_group.make_diff_file() {
