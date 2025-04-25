@@ -268,7 +268,12 @@ impl ChanGroup {
                         ChangeTag::Delete => {
                             deleted += 1;
                             write!(diff_output, "- {}", change.value())?;
-                            delete_channel(connection, change.value());
+                            let chan_name = change
+                                .value()
+                                .strip_suffix("\r\n")
+                                .or(change.value().strip_suffix("\n"))
+                                .unwrap_or(change.value());
+                            delete_channel(connection, chan_name);
                         }
                         ChangeTag::Insert => {
                             inserted += 1;
@@ -386,7 +391,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             for stream in &s_json {
                                 let _ = chan_group
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
-                                let t =
+                                let _ =
                                     create_channel(connection, &cat_id, &stream.get_name(), None);
                             }
                             if args.diff {
@@ -437,7 +442,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             for stream in &s_json {
                                 let _ = chan_group
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
-                                let t =
+                                let _ =
                                     create_channel(connection, &cat_id, &stream.get_name(), None);
                             }
                             if args.diff {

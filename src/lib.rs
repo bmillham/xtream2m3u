@@ -57,7 +57,7 @@ pub fn find_or_create_category(conn: &mut SqliteConnection, ctypes_id: &i32, c_n
             },
             false => v[0].id,
         },
-        Err(e) => -1,
+        Err(_) => -1,
     }
 }
 
@@ -105,9 +105,13 @@ pub fn create_channel(
 pub fn delete_channel(conn: &mut SqliteConnection, c_name: &str) {
     use crate::schema::channels::dsl::*;
 
-    let res = diesel::update(channels)
+    match diesel::update(channels)
         .filter(name.eq(c_name))
-        .set(deleted.eq(None::<NaiveDateTime>))
-        .execute(conn);
-    println!("Deleted {res:?}");
+        .set(deleted.eq(diesel::dsl::now))
+        .execute(conn)
+    {
+        Ok(1) => println!("Deleted {c_name}"),
+        Ok(0) => println!("Error deleting {c_name}"),
+        _ => println!("Unknown result"),
+    };
 }
