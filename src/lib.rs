@@ -106,9 +106,20 @@ pub fn create_channel(
 
 pub fn get_channel_id(conn: &mut SqliteConnection, c_name: &str) -> i32 {
     use crate::schema::channels::dsl::*;
-
-    match channels.filter(name.eq(c_name)).load::<Channels>(conn) {
-        Ok(r) => r[0].id,
+    let x = channels
+        .filter(name.eq(c_name))
+        .limit(1)
+        .load::<Channels>(conn);
+    println!("x {x:?} {c_name}");
+    match channels
+        .filter(name.eq(c_name))
+        .limit(1)
+        .load::<Channels>(conn)
+    {
+        Ok(r) => match r.is_empty() {
+            false => r[0].id,
+            true => -2,
+        },
         _ => -1,
     }
 }
