@@ -1,4 +1,4 @@
-use crate::schema::{categories, channels, types};
+use crate::schema::{categories, channels, history, types};
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use serde::Deserialize;
@@ -55,4 +55,23 @@ pub struct NewChannel<'a> {
     pub name: &'a str,
     pub added: Option<NaiveDateTime>,
     pub deleted: Option<NaiveDateTime>,
+}
+
+#[derive(Queryable, Selectable, Identifiable, Associations, Debug, PartialEq, Deserialize)]
+#[diesel(table_name = crate::schema::history)]
+#[diesel(belongs_to(Channels))]
+#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+pub struct History {
+    pub id: i32,
+    pub channels_id: i32,
+    pub changed: Option<NaiveDateTime>,
+    pub change_type: String,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = history)]
+pub struct AddHistory<'a> {
+    pub channels_id: &'a i32,
+    pub changed: Option<NaiveDateTime>,
+    pub change_type: &'a str,
 }

@@ -1,6 +1,8 @@
 pub mod models;
 pub mod schema;
-use self::models::{Categories, Channels, NewCategory, NewChannel, NewType, Types};
+use self::models::{
+    AddHistory, Categories, Channels, History, NewCategory, NewChannel, NewType, Types,
+};
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 
@@ -99,6 +101,34 @@ pub fn create_channel(
     diesel::insert_into(channels::table)
         .values(&new_channel)
         .returning(Channels::as_returning())
+        .get_result(conn)
+}
+
+pub fn get_channel_id(conn: &mut SqliteConnection, c_name: &str) -> i32 {
+    use crate::schema::channels::dsl::*;
+
+    match channels.filter(name.eq(c_name)).load::<Channels>(conn) {
+        Ok(r) => r[0].id,
+        _ => -1,
+    }
+}
+
+pub fn add_history(
+    conn: &mut SqliteConnection,
+    channels_id: &i32,
+    change_type: &str,
+) -> Result<History, diesel::result::Error> {
+    use crate::schema::history;
+
+    let new_history = AddHistory {
+        channels_id,
+        changed: None,
+        change_type,
+    };
+
+    diesel::insert_into(history::table)
+        .values(&new_history)
+        .returning(History::as_returning())
         .get_result(conn)
 }
 

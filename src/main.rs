@@ -268,12 +268,9 @@ impl ChanGroup {
                         ChangeTag::Delete => {
                             deleted += 1;
                             write!(diff_output, "- {}", change.value())?;
-                            let chan_name = change
-                                .value()
-                                .strip_suffix("\r\n")
-                                .or(change.value().strip_suffix("\n"))
-                                .unwrap_or(change.value());
-                            delete_channel(connection, chan_name);
+                            let chan_name = Self::strip_newline(change.value());
+                            let chan_id = get_channel_id(connection, chan_name);
+                            let _ = add_history(connection, &chan_id, "deleted");
                         }
                         ChangeTag::Insert => {
                             inserted += 1;
@@ -293,6 +290,11 @@ impl ChanGroup {
             println!("Not creating diff file since no previous file exists");
         }
         Ok((inserted, deleted))
+    }
+    fn strip_newline(name: &str) -> &str {
+        name.strip_suffix("\r\n")
+            .or(name.strip_suffix("\n"))
+            .unwrap_or(name)
     }
 }
 #[tokio::main]
