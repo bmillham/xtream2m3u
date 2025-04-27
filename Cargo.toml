@@ -18,4 +18,4 @@ similar = "2.7.0"
 static_str_ops = "0.1.2"
 tokio = { version = "1.0.0", features = ["rt", "rt-multi-thread", "macros", "net", "time", "full"] }
 toml = "0.8.19"
-libsqlite3-sys = { version = ">=0.8.0, <0.13.0", optional = true, features = ["bundled"] }
+#libsqlite3-sys = { version = ">=0.8.0, <0.13.0", optional = true, features = ["bundled"] }
