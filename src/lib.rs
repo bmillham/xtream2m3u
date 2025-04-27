@@ -152,17 +152,3 @@ pub fn get_last_channel_change(conn: &mut SqliteConnection, c_id: &i32) -> Strin
         _ => "".to_string(),
     }
 }
-
-/*pub fn delete_channel(conn: &mut SqliteConnection, c_name: &str) {
-    use crate::schema::channels::dsl::*;
-
-    match diesel::update(channels)
-        .filter(name.eq(c_name))
-        .set(deleted.eq(diesel::dsl::now))
-        .execute(conn)
-    {
-        Ok(1) => println!("Deleted {c_name}"),
-        Ok(0) => println!("Error deleting {c_name}"),
-        _ => println!("Unknown result"),
-    };
-}*/
