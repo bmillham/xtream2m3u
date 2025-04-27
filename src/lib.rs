@@ -83,11 +83,7 @@ pub fn create_category(
         .get_result(conn)
 }
 
-pub fn create_channel(
-    conn: &mut SqliteConnection,
-    categories_id: &i32,
-    name: &str,
-) -> Result<Channels, diesel::result::Error> {
+pub fn create_channel(conn: &mut SqliteConnection, categories_id: &i32, name: &str) {
     use crate::schema::channels;
 
     let new_channel = NewChannel {
@@ -95,10 +91,18 @@ pub fn create_channel(
         name,
     };
 
-    diesel::insert_into(channels::table)
+    let c_id = match diesel::insert_into(channels::table)
         .values(&new_channel)
         .returning(Channels::as_returning())
         .get_result(conn)
+    {
+        Ok(r) => r.id,
+        Err(_) => get_channel_id(conn, name),
+    };
+    match get_last_channel_change(conn, &c_id).as_str() {
+        "" | "deleted" => add_history(conn, &c_id, "added"),
+        _ => (),
+    };
 }
 
 pub fn get_channel_id(conn: &mut SqliteConnection, c_name: &str) -> i32 {
@@ -117,11 +121,7 @@ pub fn get_channel_id(conn: &mut SqliteConnection, c_name: &str) -> i32 {
     }
 }
 
-pub fn add_history(
-    conn: &mut SqliteConnection,
-    channels_id: &i32,
-    change_type: &str,
-) -> Result<History, diesel::result::Error> {
+pub fn add_history(conn: &mut SqliteConnection, channels_id: &i32, change_type: &str) {
     use crate::schema::history;
 
     let new_history = AddHistory {
@@ -130,10 +130,10 @@ pub fn add_history(
         change_type,
     };
 
-    diesel::insert_into(history::table)
+    let _ = diesel::insert_into(history::table)
         .values(&new_history)
         .returning(History::as_returning())
-        .get_result(conn)
+        .get_result(conn);
 }
 
 pub fn get_last_channel_change(conn: &mut SqliteConnection, c_id: &i32) -> String {
