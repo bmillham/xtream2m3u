@@ -1,6 +1,7 @@
 //use self::models::*;
 use chrono::DateTime;
 use clap::Parser;
+use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
 use serde_json::Value;
 use similar::{ChangeTag, TextDiff};
 use static_str_ops::static_format;
@@ -50,6 +51,8 @@ struct Args {
         default_value = "."
     )]
     output_dir: String,
+    #[arg(short = 'D', long, num_args = 0..=1, default_value = "", default_missing_value = "channels.db")]
+    database: String,
 }
 
 trait ValueExtensions {
@@ -217,8 +220,10 @@ impl ChanGroup {
     }
     fn make_diff_file(&mut self) -> Result<(u32, u32), std::io::Error> {
         use xtream2m3u::*;
+
         let mut new_contents = String::new();
-        let connection = &mut establish_connection();
+
+        let connection = &mut establish_connection(&self.args.database);
 
         let now = chrono::offset::Local::now()
             .format("%Y%m%d_%H%M%S")
@@ -269,8 +274,10 @@ impl ChanGroup {
                             deleted += 1;
                             write!(diff_output, "- {}", change.value())?;
                             let chan_name = Self::strip_newline(change.value());
-                            let chan_id = get_channel_id(connection, chan_name);
-                            let _ = add_history(connection, &chan_id, "deleted");
+                            if !self.args.database.is_empty() {
+                                let chan_id = get_channel_id(connection, chan_name);
+                                add_history(connection, &chan_id, "deleted");
+                            }
                         }
                         ChangeTag::Insert => {
                             inserted += 1;
@@ -297,12 +304,15 @@ impl ChanGroup {
             .unwrap_or(name)
     }
 }
+
+pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("./migrations");
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     use xtream2m3u::*;
     let args = Args::parse();
 
-    if (args.live || args.vod) && (!args.live || !args.diff) {
+    if (args.live || args.vod) && (!args.m3u && !args.diff) {
         eprintln!("You must use -m/--m3u and/or -d/--diff");
         std::process::exit(1);
     }
@@ -353,15 +363,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(err) => println!("Error: {err:?}"),
     }
-    let connection = &mut establish_connection();
 
     if args.account_info {
         std::process::exit(0);
     }
 
+    let connection = &mut establish_connection(&args.database);
+    if !args.database.is_empty() {
+        if let Ok(migration) = connection.run_pending_migrations(MIGRATIONS) {
+            if !migration.is_empty() {
+                println!("Ran migrations:");
+                for m in migration {
+                    println!("{m}");
+                }
+            };
+        };
+    };
+
     if args.live {
         // Create the live database entry
-        let type_id = find_or_create_type(connection, "live");
+        let type_id = match args.database.is_empty() {
+            false => find_or_create_type(connection, "live"),
+            true => 0,
+        };
         let c_json: Vec<Value>;
         println!("Getting categories");
         match reqwest::get(category_url).await {
@@ -369,8 +393,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 c_json = resp.json::<Vec<Value>>().await?;
                 println!("Found {} categories", c_json.len());
                 for c in &c_json {
-                    let cat_id =
-                        find_or_create_category(connection, &type_id, c.get_category_name());
+                    let cat_id = match args.database.is_empty() {
+                        false => {
+                            find_or_create_category(connection, &type_id, c.get_category_name())
+                        }
+                        true => 0,
+                    };
                     match reqwest::get(format!("{}{}", stream_by_category_url, c.get_category_id()))
                         .await
                     {
@@ -393,7 +421,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             for stream in &s_json {
                                 let _ = chan_group
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
-                                create_channel(connection, &cat_id, &stream.get_name());
+                                if !args.database.is_empty() {
+                                    create_channel(connection, &cat_id, &stream.get_name());
+                                }
                             }
                             if args.diff {
                                 (live_inserted, live_deleted) = match chan_group.make_diff_file() {
@@ -412,7 +442,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if args.vod {
         // Create the vod type database entry
-        let type_id = find_or_create_type(connection, "vod");
+        let type_id = match args.database.is_empty() {
+            false => find_or_create_type(connection, "vod"),
+            true => 0,
+        };
         let c_json: Vec<Value>;
         println!("Getting VOD categories");
         match reqwest::get(vod_categories_url).await {
@@ -420,8 +453,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 c_json = resp.json::<Vec<Value>>().await?;
                 println!("Found {} VOD categories", c_json.len());
                 for c in &c_json {
-                    let cat_id =
-                        find_or_create_category(connection, &type_id, c.get_category_name());
+                    let cat_id = match args.database.is_empty() {
+                        false => {
+                            find_or_create_category(connection, &type_id, c.get_category_name())
+                        }
+                        true => 0,
+                    };
                     match reqwest::get(format!("{}{}", vod_streams_url, c.get_category_id())).await
                     {
                         Ok(s_resp) => {

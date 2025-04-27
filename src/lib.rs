@@ -6,10 +6,18 @@ use self::models::{
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 
-pub fn establish_connection() -> SqliteConnection {
-    let database_url = "channels.db";
-    SqliteConnection::establish(database_url)
-        .unwrap_or_else(|e| panic!("Error {e} connecting to {database_url}"))
+pub fn establish_connection(database: &str) -> SqliteConnection {
+    let db_name = match database {
+        "" => ":memory:",
+        d => d,
+    };
+    SqliteConnection::establish(db_name).unwrap_or_else(|e| panic!("Error {e} creating {db_name}"))
+    /*match database {
+        "" => Some(
+        d => Some(
+            SqliteConnection::establish(d).unwrap_or_else(|e| panic!("Error {e} creating {d}")),
+        ),
+    }*/
 }
 
 pub fn find_or_create_type(conn: &mut SqliteConnection, t_name: &str) -> i32 {
@@ -17,31 +25,28 @@ pub fn find_or_create_type(conn: &mut SqliteConnection, t_name: &str) -> i32 {
 
     match types.filter(name.eq(t_name)).limit(1).load::<Types>(conn) {
         Ok(v) => match v.is_empty() {
-            true => match create_type(conn, t_name) {
-                Ok(t) => t.id,
-                _ => -2,
-            },
+            true => create_type(conn, t_name),
             false => v[0].id,
         },
-        Err(e) => {
-            println!("Error creating type: {e:?}");
-            -1
-        }
-    }
+        Err(_) => -1,
+    };
+    0
 }
 
-pub fn create_type(
-    conn: &mut SqliteConnection,
-    name: &str,
-) -> Result<Types, diesel::result::Error> {
+pub fn create_type(conn: &mut SqliteConnection, name: &str) -> i32 {
     use crate::schema::types;
 
     let new_type = NewType { name };
 
-    diesel::insert_into(types::table)
+    match diesel::insert_into(types::table)
         .values(&new_type)
         .returning(Types::as_returning())
         .get_result(conn)
+    {
+        Ok(r) => r.id,
+        _ => 0,
+    };
+    0
 }
 
 pub fn find_or_create_category(conn: &mut SqliteConnection, ctypes_id: &i32, c_name: &str) -> i32 {
@@ -53,14 +58,12 @@ pub fn find_or_create_category(conn: &mut SqliteConnection, ctypes_id: &i32, c_n
         .load::<Categories>(conn)
     {
         Ok(v) => match v.is_empty() {
-            true => match create_category(conn, ctypes_id, c_name, None) {
-                Ok(t) => t.id,
-                _ => -2,
-            },
+            true => create_category(conn, ctypes_id, c_name, None),
             false => v[0].id,
         },
         Err(_) => -1,
-    }
+    };
+    0
 }
 
 pub fn create_category(
@@ -68,7 +71,7 @@ pub fn create_category(
     types_id: &i32,
     name: &str,
     added: Option<NaiveDateTime>,
-) -> Result<Categories, diesel::result::Error> {
+) -> i32 {
     use crate::schema::categories;
 
     let new_category = NewCategory {
@@ -77,10 +80,15 @@ pub fn create_category(
         added,
     };
 
-    diesel::insert_into(categories::table)
+    match diesel::insert_into(categories::table)
         .values(&new_category)
         .returning(Categories::as_returning())
         .get_result(conn)
+    {
+        Ok(r) => r.id,
+        _ => 0,
+    };
+    0
 }
 
 pub fn create_channel(conn: &mut SqliteConnection, categories_id: &i32, name: &str) {
@@ -118,7 +126,8 @@ pub fn get_channel_id(conn: &mut SqliteConnection, c_name: &str) -> i32 {
             true => -2,
         },
         _ => -1,
-    }
+    };
+    0
 }
 
 pub fn add_history(conn: &mut SqliteConnection, channels_id: &i32, change_type: &str) {
