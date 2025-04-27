@@ -393,8 +393,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             for stream in &s_json {
                                 let _ = chan_group
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
-                                let _ =
-                                    create_channel(connection, &cat_id, &stream.get_name(), None);
+                                let ch = create_channel(connection, &cat_id, &stream.get_name());
+                                //println!("ch {ch:?}");
+                                match ch {
+                                    Err(e) => {
+                                        let s = get_channel_id(connection, &stream.get_name());
+                                        //println!("ID {s}");
+                                        let h = get_last_channel_change(connection, &s);
+                                        //println!("h {h}");
+                                        if h.is_empty() || h == "deleted" {
+                                            let h1 = add_history(connection, &s, "added");
+                                            println!("h1 {h1:?}");
+                                        }
+                                    }
+                                    Ok(r) => {
+                                        println!("r {r:?}");
+                                        let h = get_last_channel_change(connection, &r.id);
+                                        if h.is_empty() || h == "deleted" {
+                                            let h1 = add_history(connection, &r.id, "added");
+                                            println!("h1 {h1:?}");
+                                        }
+                                    }
+                                };
                             }
                             if args.diff {
                                 (live_inserted, live_deleted) = match chan_group.make_diff_file() {
@@ -444,8 +464,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             for stream in &s_json {
                                 let _ = chan_group
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
-                                let _ =
-                                    create_channel(connection, &cat_id, &stream.get_name(), None);
+                                let _ = create_channel(connection, &cat_id, &stream.get_name());
                             }
                             if args.diff {
                                 (vod_inserted, vod_deleted) = match chan_group.make_diff_file() {

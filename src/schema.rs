@@ -14,8 +14,6 @@ diesel::table! {
         id -> Integer,
         categories_id -> Integer,
         name -> Text,
-        added -> Nullable<Timestamp>,
-        deleted -> Nullable<Timestamp>,
     }
 }
 

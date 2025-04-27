@@ -87,15 +87,12 @@ pub fn create_channel(
     conn: &mut SqliteConnection,
     categories_id: &i32,
     name: &str,
-    added: Option<NaiveDateTime>,
 ) -> Result<Channels, diesel::result::Error> {
     use crate::schema::channels;
 
     let new_channel = NewChannel {
         categories_id,
         name,
-        added,
-        deleted: None,
     };
 
     diesel::insert_into(channels::table)
@@ -139,7 +136,24 @@ pub fn add_history(
         .get_result(conn)
 }
 
-pub fn delete_channel(conn: &mut SqliteConnection, c_name: &str) {
+pub fn get_last_channel_change(conn: &mut SqliteConnection, c_id: &i32) -> String {
+    use crate::schema::history::dsl::*;
+
+    match history
+        .filter(channels_id.eq(c_id))
+        .order(changed.desc())
+        .limit(1)
+        .load::<History>(conn)
+    {
+        Ok(h) => match h.is_empty() {
+            false => h[0].change_type.clone(),
+            true => "".to_string(),
+        },
+        _ => "".to_string(),
+    }
+}
+
+/*pub fn delete_channel(conn: &mut SqliteConnection, c_name: &str) {
     use crate::schema::channels::dsl::*;
 
     match diesel::update(channels)
@@ -151,4 +165,4 @@ pub fn delete_channel(conn: &mut SqliteConnection, c_name: &str) {
         Ok(0) => println!("Error deleting {c_name}"),
         _ => println!("Unknown result"),
     };
-}
+}*/

@@ -44,8 +44,6 @@ pub struct Channels {
     pub id: i32,
     pub categories_id: i32,
     pub name: String,
-    pub added: Option<NaiveDateTime>,
-    pub deleted: Option<NaiveDateTime>,
 }
 
 #[derive(Insertable)]
@@ -53,8 +51,6 @@ pub struct Channels {
 pub struct NewChannel<'a> {
     pub categories_id: &'a i32,
     pub name: &'a str,
-    pub added: Option<NaiveDateTime>,
-    pub deleted: Option<NaiveDateTime>,
 }
 
 #[derive(Queryable, Selectable, Identifiable, Associations, Debug, PartialEq, Deserialize)]
