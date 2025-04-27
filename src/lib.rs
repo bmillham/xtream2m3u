@@ -12,12 +12,6 @@ pub fn establish_connection(database: &str) -> SqliteConnection {
         d => d,
     };
     SqliteConnection::establish(db_name).unwrap_or_else(|e| panic!("Error {e} creating {db_name}"))
-    /*match database {
-        "" => Some(
-        d => Some(
-            SqliteConnection::establish(d).unwrap_or_else(|e| panic!("Error {e} creating {d}")),
-        ),
-    }*/
 }
 
 pub fn find_or_create_type(conn: &mut SqliteConnection, t_name: &str) -> i32 {
