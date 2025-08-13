@@ -290,7 +290,7 @@ impl ChanGroup {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    if (args.live || args.vod) && (!args.live || !args.diff) {
+    if (args.live || args.vod) && (!args.m3u && !args.diff) {
         eprintln!("You must use -m/--m3u and/or -d/--diff");
         std::process::exit(1);
     }
