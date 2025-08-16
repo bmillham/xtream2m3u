@@ -42,6 +42,8 @@ struct Args {
     diff: bool,
     #[arg(short, long, help = "Create M3U files")]
     m3u: bool,
+    #[arg(short = 'S', long, help = "Create a single M3U file")]
+    single_m3u: bool,
     #[arg(
         short,
         long,
@@ -136,6 +138,7 @@ struct ChanGroup {
     args: Args,
     group_name: String,
     file_name: String,
+    file_created: bool,
     m3u_dir: PathBuf,
     diff_dir: PathBuf,
     handle: Option<File>,
@@ -152,13 +155,16 @@ impl ChanGroup {
             true => [&args.output_dir, "vod_diff"].iter().collect(),
             false => [&args.output_dir, "live_diff"].iter().collect(),
         };
-        let file_name =
-            sanitise_file_name::sanitise(static_format!("{group_name}.m3u")).to_string();
+        let file_name = match args.single_m3u {
+            false => sanitise_file_name::sanitise(static_format!("{group_name}.m3u")).to_string(),
+            true => sanitise_file_name::sanitise(static_format!("all.m3u")).to_string(),
+        };
 
         ChanGroup {
             args,
             group_name,
             file_name,
+            file_created: false,
             m3u_dir,
             diff_dir,
             handle: None,
@@ -173,14 +179,21 @@ impl ChanGroup {
                 let _ = create_dir_all(&self.m3u_dir);
             };
         }
-        self.handle = match File::create(self.m3u_dir.join(self.file_name.clone())) {
-            Ok(f) => Some(f),
-            Err(e) => panic!("Error creating : {e:?}"),
-        };
-        if !self.args.no_header {
-            if let Some(ref mut h) = self.handle {
-                writeln!(h, "#EXTM3U")?;
+        
+        if !self.file_created {
+            println!("Creating {:?}", self.file_name);
+            self.handle = match File::create(self.m3u_dir.join(self.file_name.clone())) {
+                Ok(f) => Some(f),
+                Err(e) => panic!("Error creating : {e:?}"),
+            };
+            if !self.args.no_header {
+                if let Some(ref mut h) = self.handle {
+                    writeln!(h, "#EXTM3U")?;
+                }
             }
+            self.file_created = true;
+        } else {
+            println!("Using {:?}", self.handle);
         }
         Ok(())
     }
@@ -348,10 +361,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.live {
         let c_json: Vec<Value>;
         println!("Getting categories");
+        
         match reqwest::get(category_url).await {
             Ok(resp) => {
                 c_json = resp.json::<Vec<Value>>().await?;
                 println!("Found {} categories", c_json.len());
+                let mut chan_group : ChanGroup = ChanGroup::new(
+                    args.clone(),
+                    "ALL".to_string(),
+                    false,
+                );
+                if args.single_m3u && args.m3u {
+                    let _ = chan_group.create_file();
+                }
                 for c in &c_json {
                     match reqwest::get(format!("{}{}", stream_by_category_url, c.get_category_id()))
                         .await
@@ -364,13 +386,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 c.get_category_name()
                             );
                             live_streams += s_json.len();
-                            let mut chan_group = ChanGroup::new(
-                                args.clone(),
-                                c.get_category_name().to_string(),
-                                false,
-                            );
-                            if args.m3u {
-                                let _ = chan_group.create_file();
+                            
+                            if !args.single_m3u {
+                                chan_group = ChanGroup::new(
+                                    args.clone(),
+                                    c.get_category_name().to_string(),
+                                    false,
+                                );
+                                if args.m3u {
+                                    let _ = chan_group.create_file();
+                                }
                             }
                             for stream in &s_json {
                                 let _ = chan_group
