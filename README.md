@@ -12,7 +12,7 @@ This will install everything you need to use Rust
 
 ### Windows or Mac
 
-Go to https::/www.rust-lan.org/tools/install and follow the instructions.
+Go to https://www.rust-lan.org/tools/install and follow the instructions.
 
 #### Windows Executable for WIn10/11
 
@@ -42,7 +42,7 @@ Everything from here on is done in the xtream2m3u directory.
 + -d, --diff: Create a timestamped file of changes
 + -m, --m3u: Create a M3U.
 + -S, --single-m3u: Create a single M3U
-+ -a, --acount-info: Only show the account information
++ -a, --account-info: Only show the account information
 + -T, --tvheadend: Adds a remote call to ffmpeg for use in TVHeadend (Option does not do anything at this time)
 + -n, --no-header: Does not include the normal m3u header. Useful if you want to concatinate several m3u files.
 + -o, --output-dir: Directory to save output files in. Defaults to current directory.
