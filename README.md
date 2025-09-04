@@ -10,6 +10,10 @@ To install rust:\
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh\
 This will install everything you need to use Rust
 
+If you get error building on some Debian based distros you probably need to 
+install a few more packages:\
+sudo apt install gcc libssl-dev pkg-config
+
 ### Windows or Mac
 
 Go to https://www.rust-lan.org/tools/install and follow the instructions.
