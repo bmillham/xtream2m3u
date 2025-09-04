@@ -44,9 +44,9 @@ mkdir -p projects\
 cd projects\
 git clone https://github.com/bmillham/xtream2m3u
 
-The project is now in projects/extream2m3u
+The project is now in projects/xtream2m3u
 
-cd extream2m3u
+cd xtream2m3u
 
 Everything from here on is done in the xtream2m3u directory.
 
