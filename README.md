@@ -10,9 +10,23 @@ To install rust:\
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh\
 This will install everything you need to use Rust
 
-If you get error building on some Debian based distros you probably need to 
-install a few more packages:\
-sudo apt install gcc libssl-dev pkg-config
+You will also need a few additional packages as OpenSSL is used.
+
+#### Arch Linux
+$ sudo pacman -S pkgconf openssl gcc
+
+#### Debian and Ubuntu
+$ sudo apt-get install pkg-config libssl-dev gcc
+
+#### Fedora
+$ sudo dnf install pkgconf perl-FindBin perl-IPC-Cmd openssl-devel gcc
+
+#### Alpine Linux
+$ apk add pkgconf openssl-dev gcc
+
+#### openSUSE
+$ sudo zypper in libopenssl-devel gcc
+
 
 ### Windows or Mac
 
