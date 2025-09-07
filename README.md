@@ -35,7 +35,7 @@ Go to https://www.rust-lan.org/tools/install and follow the instructions.
 #### Windows Executable for WIn10/11
 
 If you do not want to install Rust you can download this instead:\
-https://github.com/bmillham/xtream2m3u/releases/download/v0.1.0/xtream2m3u.exe
+https://github.com/bmillham/xtream2m3u/releases/download/V0.1.3/xtream2m3u.zip
 
 ## Install xtream2m3u
 
