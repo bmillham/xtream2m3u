@@ -143,6 +143,7 @@ struct ChanGroup {
     diff_dir: PathBuf,
     handle: Option<File>,
     all_channels: Vec<String>,
+    vod: bool,
 }
 
 impl ChanGroup {
@@ -169,6 +170,7 @@ impl ChanGroup {
             diff_dir,
             handle: None,
             all_channels: vec![],
+            vod,
         }
     }
 
@@ -214,10 +216,14 @@ impl ChanGroup {
                     true => self.args.ts.clone(),
                     false => chan.get_ext(),
                 };
+                let mut server = self.args.server.clone();
+                if self.vod {
+                    server += &*format!("/movie")
+                }
                 writeln!(
                     h,
                     "{}/{}/{}/{}{}",
-                    self.args.server,
+                    server,
                     self.args.username,
                     self.args.password,
                     chan.get_stream_id(),
@@ -423,6 +429,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(resp) => {
                 c_json = resp.json::<Vec<Value>>().await?;
                 println!("Found {} VOD categories", c_json.len());
+                let mut chan_group : ChanGroup = ChanGroup::new(
+                    args.clone(),
+                    "ALL".to_string(),
+                    true,
+                );
+                if args.single_m3u && args.m3u {
+                    let _ = chan_group.create_file();
+                }
                 for c in &c_json {
                     match reqwest::get(format!("{}{}", vod_streams_url, c.get_category_id())).await
                     {
@@ -434,15 +448,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 c.get_category_name()
                             );
                             vod_streams += s_json.len();
-                            let mut chan_group = ChanGroup::new(
-                                args.clone(),
-                                c.get_category_name().to_string(),
-                                true,
-                            );
-                            if args.m3u {
-                                let _ = chan_group.create_file();
+                            if !args.single_m3u {
+                                chan_group = ChanGroup::new(
+                                    args.clone(),
+                                    c.get_category_name().to_string(),
+                                    true,
+                                );
+                                if args.m3u {
+                                    let _ = chan_group.create_file();
+                                }
                             }
-                            for stream in &s_json {
+                        
+                        for stream in &s_json {
                                 let _ = chan_group
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
                             }
