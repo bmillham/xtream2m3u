@@ -64,8 +64,9 @@ Everything from here on is done in the xtream2m3u directory.
 + -T, --tvheadend: Adds a remote call to ffmpeg for use in TVHeadend (Option does not do anything at this time)
 + -n, --no-header: Does not include the normal m3u header. Useful if you want to concatinate several m3u files.
 + -o, --output-dir: Directory to save output files in. Defaults to current directory.
++ --series: Use Series channels
 
-Output files are saved in live\_m3u, live\_diff, vod\_m3u and vod\_diff
+Output files are saved in live\_m3u, live\_diff, movie\_m3u and movie\_diff
 If -l and/or -v are used then -d and/or -m must also be used.
 
 # Running

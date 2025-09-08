@@ -30,6 +30,8 @@ struct Args {
     ts: String,
     #[arg(short, long, help = "Create a M3U for each VOD category")]
     vod: bool,
+    #[arg(long, help = "Create a M3U for Series")]
+    series: bool,
     #[arg(short = 'T', long, help = "Modify the stream URL for use in TVHeadend")]
     tvheadend_remux: bool,
     #[arg(short, long, help = "Do not add a header to the M3U files")]
@@ -55,9 +57,13 @@ struct Args {
 
 trait ValueExtensions {
     fn get_name(&self) -> String;
+    fn get_epg_id(&self) -> String;
     fn get_category_name(&self) -> &str;
     fn get_category_id(&self) -> &str;
     fn get_stream_id(&self) -> String;
+    fn get_series_name(&self) -> &str;
+    fn get_series_id(&self) -> String;
+    fn get_episode_id(&self) -> String;
     fn expires(&self) -> String;
 
     fn created(&self) -> String;
@@ -72,18 +78,41 @@ impl ValueExtensions for Value {
     fn get_name(&self) -> String {
         self["name"].as_str().unwrap_or_default().to_string()
     }
+    fn get_epg_id(&self) -> String { self["epg_channel_id"].as_str().unwrap_or_default().to_string() }
     fn get_category_name(&self) -> &str {
         self["category_name"].as_str().unwrap_or_default()
     }
+    fn get_series_name(&self) -> &str {self["category_name"].as_str().unwrap_or_default()}
     fn get_category_id(&self) -> &str {
         self["category_id"].as_str().unwrap_or("-1")
     }
+    fn get_series_id(&self) -> String {
+        //println!("{self:?}");
+        //println!("Getting series id {:?}", self["id"]);
+        //if self["series_id"].is_null() { return "-1".to_string() }
+        if self["series_id"].is_null() { 
+            return self.get_episode_id()
+        }
+        match self["series_id"].is_string() {
+            true => self["series_id"].as_str().unwrap().to_string(),
+            false => self["series_id"].as_i64().unwrap().to_string(),
+        }
+    }
+    fn get_episode_id(&self) -> String {
+        if self["id"].is_null() { return "-1".to_string() }
+        match self["id"].is_string() {
+            true => self["id"].as_str().unwrap().to_string(),
+            false => self["id"].as_i64().unwrap().to_string(),
+        }
+    }
+
     fn get_stream_id(&self) -> String {
         match self["stream_id"].is_string() {
             true => self["stream_id"].as_str().unwrap().to_string(),
             false => self["stream_id"].as_i64().unwrap().to_string(),
         }
     }
+
     fn get_ext(&self) -> String {
         let x = self["container_extension"].as_str().unwrap_or_default();
         match x.is_empty() {
@@ -143,19 +172,13 @@ struct ChanGroup {
     diff_dir: PathBuf,
     handle: Option<File>,
     all_channels: Vec<String>,
-    vod: bool,
+    group_type: String,
 }
 
 impl ChanGroup {
-    fn new(args: Args, group_name: String, vod: bool) -> ChanGroup {
-        let m3u_dir: PathBuf = match vod {
-            true => [&args.output_dir, "vod_m3u"].iter().collect(),
-            false => [&args.output_dir, "live_m3u"].iter().collect(),
-        };
-        let diff_dir: PathBuf = match vod {
-            true => [&args.output_dir, "vod_diff"].iter().collect(),
-            false => [&args.output_dir, "live_diff"].iter().collect(),
-        };
+    fn new(args: Args, group_name: String, group_type: String) -> ChanGroup {
+        let m3u_dir: PathBuf = [&args.output_dir, &format!("{group_type}_m3u")].iter().collect();
+        let diff_dir: PathBuf = [&args.output_dir, &format!("{group_type}_m3u")].iter().collect();
         let file_name = match args.single_m3u {
             false => sanitise_file_name::sanitise(static_format!("{group_name}.m3u")).to_string(),
             true => sanitise_file_name::sanitise(static_format!("all.m3u")).to_string(),
@@ -170,7 +193,7 @@ impl ChanGroup {
             diff_dir,
             handle: None,
             all_channels: vec![],
-            vod,
+            group_type,
         }
     }
 
@@ -206,7 +229,9 @@ impl ChanGroup {
             if let Some(ref mut h) = self.handle {
                 writeln!(
                     h,
-                    "#EXTINF:-1 tvg-name={} tgv-logo={} group-title=\"{}\",{}",
+                    "#EXTINF:-1 tvg-id=\"{}\" tvg-name=\"{}\" tgv-logo={} group-title=\"{}\",\
+                    {}",
+                    chan.get_epg_id(),
                     chan.get_name(),
                     chan["stream_icon"],
                     gname,
@@ -217,16 +242,25 @@ impl ChanGroup {
                     false => chan.get_ext(),
                 };
                 let mut server = self.args.server.clone();
-                if self.vod {
-                    server += &*format!("/movie")
+                if self.group_type != "live" {
+                    server += &*format!("/{}", self.group_type);
                 }
+                let sid = match self.group_type.as_str() {
+                    "series" => chan.get_series_id(),
+                    _ => chan.get_stream_id(),
+                };
+                //if self.group_type != "series" {
+                //    sid = chan.get_stream_id();
+                //} else {
+                //    sid = chan.get_series_id();
+                //}
                 writeln!(
                     h,
                     "{}/{}/{}/{}{}",
                     server,
                     self.args.username,
                     self.args.password,
-                    chan.get_stream_id(),
+                    sid,
                     ext
                 )?;
             }
@@ -333,6 +367,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "{}/player_api.php?username={}&password={}&action=get_vod_streams&category_id=",
         args.server, args.username, args.password
     );
+    let series_categories_url = format!(
+        "{}/player_api.php?username={}&password={}&action=get_series_categories",
+        args.server, args.username, args.password
+    );
+    let series_streams_url = format!(
+        "{}/player_api.php?username={}&password={}&action=get_series&category_id=",
+        args.server, args.username, args.password
+    );
+    let series_info_url = format!(
+        "{}/player_api.php?username={}&password={}&action=get_series_info&series_id=",
+        args.server, args.username, args.password);
 
     let mut live_inserted = 0;
     let mut live_deleted = 0;
@@ -340,6 +385,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut vod_deleted = 0;
     let mut live_streams = 0;
     let mut vod_streams = 0;
+    let mut series_inserted = 0;
+    let mut series_deleted = 0;
+    let mut series_streams = 0;
 
     match reqwest::get(account_url).await {
         Ok(resp) => {
@@ -375,7 +423,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let mut chan_group : ChanGroup = ChanGroup::new(
                     args.clone(),
                     "ALL".to_string(),
-                    false,
+                    "live".to_string(),
                 );
                 if args.single_m3u && args.m3u {
                     let _ = chan_group.create_file();
@@ -397,7 +445,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 chan_group = ChanGroup::new(
                                     args.clone(),
                                     c.get_category_name().to_string(),
-                                    false,
+                                    "live".to_string(),
                                 );
                                 if args.m3u {
                                     let _ = chan_group.create_file();
@@ -432,7 +480,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let mut chan_group : ChanGroup = ChanGroup::new(
                     args.clone(),
                     "ALL".to_string(),
-                    true,
+                    "movie".to_string(),
                 );
                 if args.single_m3u && args.m3u {
                     let _ = chan_group.create_file();
@@ -452,13 +500,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 chan_group = ChanGroup::new(
                                     args.clone(),
                                     c.get_category_name().to_string(),
-                                    true,
+                                    "movie".to_string(),
                                 );
                                 if args.m3u {
                                     let _ = chan_group.create_file();
                                 }
                             }
-                        
+
                         for stream in &s_json {
                                 let _ = chan_group
                                     .add_channel(c.get_category_name().to_string(), stream.clone());
@@ -477,12 +525,112 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Err(err) => println!("Error {err:?}"),
         }
     }
+    if args.series {
+        let c_json: Vec<Value>;
+        println!("Getting Series categories");
+        match reqwest::get(series_categories_url).await {
+            Ok(resp) => {
+                c_json = resp.json::<Vec<Value>>().await?;
+                println!("Found {} Series categories", c_json.len());
+                let mut chan_group : ChanGroup = ChanGroup::new(
+                    args.clone(),
+                    "ALL".to_string(),
+                    "series".to_string(),
+                );
+                if args.single_m3u && args.m3u {
+                    let _ = chan_group.create_file();
+                }
+                for c in &c_json {
+                    //println!("{:?}", c);
+                    match reqwest::get(format!("{}{}", series_streams_url, c.get_category_id()))
+                        .await
+                    {
+                        Ok(s_resp) => {
+                            let s_json = s_resp.json::<Vec<Value>>().await?;
+                            println!(
+                                "Found {} series in {}",
+                                s_json.len(),
+                                c.get_series_name()
+                            );
+                            series_streams += s_json.len();
+                            if !args.single_m3u {
+                                chan_group = ChanGroup::new(
+                                    args.clone(),
+                                    c.get_series_name().to_string(),
+                                    "series".to_string(),
+                                );
+                                if args.m3u {
+                                    let _ = chan_group.create_file();
+                                }
+                            }
+
+                            for stream in &s_json {
+                                //let _ = chan_group
+                                //    .add_channel(c.get_series_name().to_string(), stream.clone());
+                                //println!("STREAM {stream:?}");
+                                //let url = format!("{}{}", series_info_url, stream.get_series_id
+                                // ());
+                                //println!("URL {}", url);
+                                match reqwest::get(format!("{}{}", series_info_url, stream
+                                    .get_series_id())).await {
+                                    Ok(ser_resp) => {
+                                        let ser_json = ser_resp.json::<Value>().await?;
+                                        println!("Found {} Seasons {}",
+                                            ser_json["info"]["name"].as_str().unwrap(),
+                                                 ser_json["seasons"].as_array()
+                                         .unwrap()
+                                            .len());
+                                        for season in ser_json["seasons"].as_array().unwrap() {
+                                            //println!("Season {} {}", season["name"],
+                                            //         season["season_number"]);
+                                            if season["season_number"].as_i64().unwrap()  > 0 {
+                                                //println!("{:?}", ser_json["episodes"]);
+                                                for ep in
+                                                    ser_json["episodes"][season["season_number"]
+                                                        .to_string()].
+                                                        as_array().unwrap_or
+                                                    (&vec![Value::default()])
+
+                                                         {
+                                                    //println!("EP {} {}", ep["title"], ep["id"]);
+                                                             let _ = chan_group
+                                                                 .add_channel(ep["title"].to_string
+                                                                 (),
+                                                                              ep.clone());
+                                                }
+                                            }
+                                        }
+                                        //for ep in ser_json["episodes"].as_array().unwrap() {
+                                        //    //
+                                        //}
+                                    }
+                                    Err(err) => println!("Error {err:?}"),
+                                }
+                            }
+                            if args.diff {
+                                (series_inserted, series_deleted) = match chan_group.make_diff_file
+                                () {
+                                    Ok((i, d)) => (series_inserted + i, series_deleted + d),
+                                    Err(_) => (series_inserted, series_deleted),
+                                };
+                            }
+                        }
+                        Err(err) => println!("Error {err:?}"),
+                    }
+                }
+            }
+            Err(err) => println!("Error {err:?}"),
+        }
+    }
     if args.m3u {
         if args.live {
             println!("Live Streams: {live_streams}");
         }
         if args.vod {
             println!("VOD Streams: {vod_streams}");
+        }
+        if args.series {
+            println!("Series Streams: {series_streams}");
         }
         println!("Total Streams: {}", live_streams + vod_streams);
     }
