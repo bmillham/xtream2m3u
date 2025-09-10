@@ -8,6 +8,7 @@ use std::{
     fs::{File, create_dir_all, read_to_string},
     io::Write,
     path::PathBuf,
+    collections::HashMap,
 };
 
 #[derive(Parser, Debug, Clone)]
@@ -388,6 +389,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut series_inserted = 0;
     let mut series_deleted = 0;
     let mut series_streams = 0;
+    let mut series_no_episodes = 0;
 
     match reqwest::get(account_url).await {
         Ok(resp) => {
@@ -526,12 +528,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     if args.series {
-        let c_json: Vec<Value>;
+        let series_categories_json: Vec<Value>;
         println!("Getting Series categories");
         match reqwest::get(series_categories_url).await {
             Ok(resp) => {
-                c_json = resp.json::<Vec<Value>>().await?;
-                println!("Found {} Series categories", c_json.len());
+                series_categories_json = resp.json::<Vec<Value>>().await?;
+                println!("Found {} Series categories", series_categories_json.len());
                 let mut chan_group : ChanGroup = ChanGroup::new(
                     args.clone(),
                     "ALL".to_string(),
@@ -540,19 +542,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if args.single_m3u && args.m3u {
                     let _ = chan_group.create_file();
                 }
-                for c in &c_json {
+                for c in &series_categories_json {
                     //println!("{:?}", c);
                     match reqwest::get(format!("{}{}", series_streams_url, c.get_category_id()))
                         .await
                     {
-                        Ok(s_resp) => {
-                            let s_json = s_resp.json::<Vec<Value>>().await?;
+                        Ok(series_resp) => {
+                            let series_json = series_resp.json::<Vec<Value>>().await?;
                             println!(
                                 "Found {} series in {}",
-                                s_json.len(),
+                                series_json.len(),
                                 c.get_series_name()
                             );
-                            series_streams += s_json.len();
+                            series_streams += series_json.len();
                             if !args.single_m3u {
                                 chan_group = ChanGroup::new(
                                     args.clone(),
@@ -564,51 +566,67 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                             }
 
-                            for stream in &s_json {
+                            for series in &series_json {
                                 //let _ = chan_group
                                 //    .add_channel(c.get_series_name().to_string(), stream.clone());
                                 //println!("STREAM {stream:?}");
-                                //let url = format!("{}{}", series_info_url, stream.get_series_id
-                                // ());
+                                let url = format!("{}{}", series_info_url, series.get_series_id
+                                 ());
                                 //println!("URL {}", url);
-                                match reqwest::get(format!("{}{}", series_info_url, stream
+                                match reqwest::get(format!("{}{}", series_info_url, series
                                     .get_series_id())).await {
-                                    Ok(ser_resp) => {
-                                        let ser_json = ser_resp.json::<Value>().await?;
-                                        println!("Found {} Seasons {}",
-                                            ser_json["info"]["name"].as_str().unwrap(),
-                                                 ser_json["seasons"].as_array()
-                                         .unwrap()
-                                            .len());
-                                        for season in ser_json["seasons"].as_array().unwrap() {
-                                            //println!("Season {} {}", season["name"],
-                                            //         season["season_number"]);
-                                            if season["season_number"].as_i64().unwrap()  > 0 {
-                                                //println!("{:?}", ser_json["episodes"]);
-                                                for ep in
-                                                    ser_json["episodes"][season["season_number"]
-                                                        .to_string()].
-                                                        as_array().unwrap_or
-                                                    (&vec![Value::default()])
-
-                                                         {
-                                                    //println!("EP {} {}", ep["title"], ep["id"]);
-                                                             let _ = chan_group
-                                                                 .add_channel(ep["title"].to_string
-                                                                 (),
-                                                                              ep.clone());
+                                    Ok(season_resp) => {
+                                        let season_json: HashMap<String, Value> = season_resp
+                                            .json()
+                                            .await?;
+                                        if !season_json.contains_key("episodes") {
+                                            println!("No episodes in series {}",
+                                                     season_json["info"]["name"]);
+                                            series_no_episodes += 1;
+                                        } else if season_json["episodes"].is_array() {
+                                            println!("WARNING: Array found in episodes {}",
+                                                     season_json["info"]["name"].as_str().unwrap());
+                                            let x = season_json["episodes"].as_array().unwrap();
+                                            println!("Episode len {}", x.len());
+                                            for i in x {
+                                                for y in i.as_array().unwrap() {
+                                                    //println!("{} {}", y["season"], y["title"]);
+                                                    let _ = chan_group.add_channel(y["title"]
+                                                                                       .to_string
+                                                                                       (), y
+                                                        .clone());
+                                                    }
+                                                }
+                                        } else {
+                                            let episodes_map: HashMap<String, Value> =
+                                                serde_json::from_str
+                                                    (&season_json["episodes"]
+                                                        .to_string())?;
+                                            let mut episodes: Vec<_> = episodes_map.iter().collect();
+                                            episodes.sort_by_key(|a| a.0);
+                                            //println!("Found {} Seasons {} (Reported), {} (Found)",
+                                            //         season_json["info"]["name"].as_str()
+                                            // .unwrap(),
+                                            //         season_json["seasons"].as_array()
+                                            //             .unwrap()
+                                            //             .len(), episodes.iter().len
+                                            //    ());
+                                            for (k, v) in episodes.iter() {
+                                                for i in v.as_array().unwrap() {
+                                                    let _ = chan_group
+                                                        .add_channel(i["title"].to_string
+                                                        (),
+                                                                     i.clone());
+                                                    //println!("{} {} {}", k, i["id"], i["title"]);
                                                 }
                                             }
                                         }
-                                        //for ep in ser_json["episodes"].as_array().unwrap() {
-                                        //    //
-                                        //}
                                     }
-                                    Err(err) => println!("Error {err:?}"),
-                                }
+                                Err(err) => println!("Error {err:?}"),
                             }
-                            if args.diff {
-                                (series_inserted, series_deleted) = match chan_group.make_diff_file
+                        }
+                        if args.diff {
+                        (series_inserted, series_deleted) = match chan_group.make_diff_file
                                 () {
                                     Ok((i, d)) => (series_inserted + i, series_deleted + d),
                                     Err(_) => (series_inserted, series_deleted),
@@ -631,6 +649,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         if args.series {
             println!("Series Streams: {series_streams}");
+            println!("Series with no episodes: {series_no_episodes}");
         }
         println!("Total Streams: {}", live_streams + vod_streams);
     }
