@@ -80,6 +80,7 @@ trait ValueExtensions {
     fn status(&self) -> &str;
     fn active_cons(&self) -> &str;
     fn get_ext(&self) -> String;
+    fn get_icon(&self) -> String;
 }
 
 impl ValueExtensions for Value {
@@ -123,6 +124,14 @@ impl ValueExtensions for Value {
         match x.is_empty() {
             true => "".to_string(),
             false => format!(".{x}"),
+        }
+    }
+    
+    fn get_icon(&self) -> String {
+        let x = self["stream_icon"].as_str().unwrap_or_default();
+        match x.is_empty() {
+           true => "".to_string(),
+            false => x.to_string(),
         }
     }
     fn expires(&self) -> String {
@@ -241,7 +250,7 @@ impl ChanGroup {
                 epg_id = chan.get_epg_id();
                 ext = chan.get_ext();
                 stream_id = chan.get_stream_id();
-                stream_icon = "".to_string();
+                stream_icon = chan.get_icon();
             },
             StreamType::Episode(chan) => {
                 chan_name = chan.title.clone();
@@ -414,7 +423,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Verify that your username and password are correct");
                 std::process::exit(1);
             }
-            let a_json = resp.json::<Value>().await?;
+            let a_json = match resp.json::<Value>().await {
+                Ok(j) => j,
+                Err(e) => {
+                    println!("Error getting account information: {e}");
+                    std::process::exit(1);
+                }
+            };
 
             println!("Account Information:");
             println!(" Created: {}", a_json.created());
@@ -424,7 +439,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!(" Max Connections: {}", a_json.max_connections());
             println!(" Trial: {}", a_json.is_trial());
         }
-        Err(err) => println!("Error: {err:?}"),
+        Err(err) => {
+            println!("Error: {err:?}");
+            std::process::exit(1);
+        },
     }
     if args.account_info {
         std::process::exit(0);
