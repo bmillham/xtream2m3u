@@ -1,5 +1,4 @@
 use chrono::DateTime;
-use clap::Parser;
 use serde_json::Value;
 use similar::{ChangeTag, TextDiff};
 use static_str_ops::static_format;
@@ -9,54 +8,13 @@ use std::{
     io::Write,
     path::PathBuf,
 };
+use clap::Parser;
 
 mod types;
-use types::series::*;
+mod args;
 
-#[derive(Parser, Debug, Clone)]
-#[command(version, about, long_about=None)]
-struct Args {
-    #[arg(short, long)]
-    server: String,
-    #[arg(short, long)]
-    username: String,
-    #[arg(short, long)]
-    password: String,
-    #[arg(
-        short,
-        long,
-        help = "Append .ts to stream URLs",
-		num_args = 0..=1,
-        default_value = "",
-        default_missing_value = ".ts",
-    )]
-    ts: String,
-    #[arg(short, long, help = "Create a M3U for each VOD category")]
-    vod: bool,
-    #[arg(long, help = "Create a M3U for Series")]
-    series: bool,
-    #[arg(short = 'T', long, help = "Modify the stream URL for use in TVHeadend")]
-    tvheadend_remux: bool,
-    #[arg(short, long, help = "Do not add a header to the M3U files")]
-    no_header: bool,
-    #[arg(short, long, help = "Create M3U/Diff for live channels")]
-    live: bool,
-    #[arg(short, long)]
-    account_info: bool,
-    #[arg(short, long)]
-    diff: bool,
-    #[arg(short, long, help = "Create M3U files")]
-    m3u: bool,
-    #[arg(short = 'S', long, help = "Create a single M3U file")]
-    single_m3u: bool,
-    #[arg(
-        short,
-        long,
-        help = "Where to save M3U/Diff files",
-        default_value = "."
-    )]
-    output_dir: String,
-}
+use types::series::*;
+use args::args::{Args, verify_args};
 
 enum StreamType<'a> {
     Value(Value),
@@ -366,12 +324,9 @@ impl ChanGroup {
 }
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = Args::parse();
+    let args = args::args::Args::parse();
+    if !verify_args(&args) {std::process::exit(1);}
 
-    if (args.live || args.vod) && (!args.m3u && !args.diff) {
-        eprintln!("You must use -m/--m3u and/or -d/--diff");
-        std::process::exit(1);
-    }
     let account_url = format!(
         "{}/player_api.php?username={}&password={}",
         args.server, args.username, args.password
