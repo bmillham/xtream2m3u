@@ -1,4 +1,3 @@
-use chrono::DateTime;
 use serde_json::Value;
 use similar::{ChangeTag, TextDiff};
 use static_str_ops::static_format;
@@ -14,6 +13,7 @@ mod types;
 mod args;
 
 use types::series::*;
+use types::account::*;
 use args::args::{Args, verify_args};
 
 enum StreamType<'a> {
@@ -30,16 +30,10 @@ trait ValueExtensions {
     fn get_series_name(&self) -> &str;
     fn get_series_id(&self) -> String;
     fn get_episode_id(&self) -> String;
-    fn expires(&self) -> String;
-
-    fn created(&self) -> String;
-    fn max_connections(&self) -> i64;
-    fn is_trial(&self) -> bool;
-    fn status(&self) -> &str;
-    fn active_cons(&self) -> &str;
     fn get_ext(&self) -> String;
     fn get_icon(&self) -> String;
 }
+
 
 impl ValueExtensions for Value {
     fn get_name(&self) -> String {
@@ -91,46 +85,6 @@ impl ValueExtensions for Value {
            true => "".to_string(),
             false => x.to_string(),
         }
-    }
-    fn expires(&self) -> String {
-        let exp_ts = match self["user_info"]["exp_date"].as_str() {
-            Some(s) => s.parse().unwrap(),
-            _ => self["user_info"]["exp_date"].as_i64().unwrap_or_default(),
-        };
-        DateTime::from_timestamp(exp_ts, 0)
-            .unwrap_or_default()
-            .to_string()
-    }
-    fn created(&self) -> String {
-        let created_ts = match self["user_info"]["created_at"].as_str() {
-            Some(s) => s.parse().unwrap(),
-            _ => self["user_info"]["created_at"].as_i64().unwrap_or_default(),
-        };
-        DateTime::from_timestamp(created_ts, 0)
-            .unwrap_or_default()
-            .to_string()
-    }
-    fn max_connections(&self) -> i64 {
-        match self["user_info"]["max_connections"].as_str() {
-            Some(s) => s.parse().unwrap(),
-            _ => self["user_info"]["max_connections"]
-                .as_i64()
-                .unwrap_or_default(),
-        }
-    }
-    fn is_trial(&self) -> bool {
-        match self["user_info"]["is_trial"].is_boolean() {
-            true => self["user_info"]["is_trial"].as_bool().unwrap(),
-            false => matches!(self["user_info"]["is_trial"].as_str(), Some("1")),
-        }
-    }
-    fn status(&self) -> &str {
-        self["user_info"]["status"].as_str().unwrap_or_default()
-    }
-    fn active_cons(&self) -> &str {
-        self["user_info"]["active_cons"]
-            .as_str()
-            .unwrap_or_default()
     }
 }
 
@@ -378,21 +332,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Verify that your username and password are correct");
                 std::process::exit(1);
             }
-            let a_json = match resp.json::<Value>().await {
-                Ok(j) => j,
+            let a_json = match resp.json::<Account>().await {
+                Ok(json) => json,
                 Err(e) => {
-                    println!("Error getting account information: {e}");
+                    println!("error {e}");
                     std::process::exit(1);
                 }
             };
-
             println!("Account Information:");
-            println!(" Created: {}", a_json.created());
-            println!(" Expires: {}", a_json.expires());
-            println!(" Status: {}", a_json.status());
-            println!(" Active Connections: {}", a_json.active_cons());
-            println!(" Max Connections: {}", a_json.max_connections());
-            println!(" Trial: {}", a_json.is_trial());
+            println!(" Created: {}", a_json.user_info.created_at());
+            println!(" Expires: {}", a_json.user_info.exp_date());
+            println!(" Status: {}", a_json.user_info.status);
+            println!(" Active Connections: {}", a_json.user_info.active_cons());
+            println!(" Max Connections: {}", a_json.user_info.max_connections());
+            println!(" Trial: {}", a_json.user_info.is_trial());
         }
         Err(err) => {
             println!("Error: {err:?}");

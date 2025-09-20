@@ -11,3 +11,12 @@
 *.mp4
 *.ts
 *.txt
+/src/#main.rs#
+/src/channels.db
+/src/schema.save.rs
+/Cargo.lock
+/channels.db
+/channels.db.save
+/kaiju.json
+/l7.xml
+.idea
