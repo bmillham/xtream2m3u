@@ -263,7 +263,7 @@ impl ChanGroup {
             if let Some(ref mut h) = self.handle {
                 writeln!(
                     h,
-                    "#EXTINF:-1 tvg-id=\"{}\" tvg-name=\"{}\" tgv-logo=\"{}\" group-title=\"{}\",\
+                    "#EXTINF:-1 tvg-id=\"{}\" tvg-name=\"{}\" tvg-logo=\"{}\" group-title=\"{}\",\
                     {}",
                     epg_id.trim_start_matches("\"").trim_end_matches("\""),
                     chan_name.trim_start_matches("\"").trim_end_matches("\""),
